@@ -2,8 +2,8 @@
 name: Feature Template
 about: 기능 추가 이슈 템플릿
 title: ''
-labels: Back-end, documentation, LLM
-assignees: KimEuiSoo, sungho-heo, Hong0531
+labels: Back-end, bug, documentation, LLM
+assignees: Hong0531, KimEuiSoo, sungho-heo
 
 ---
 
