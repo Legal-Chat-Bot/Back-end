@@ -17,6 +17,7 @@ app.include_router(user_router)
 
 init_db()  # 애플리케이션 시작 시 DB 초기화 (테이블 생성 등)
 
+app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
