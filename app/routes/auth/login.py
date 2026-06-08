@@ -16,15 +16,6 @@ from app.core.security import (
 
 router = APIRouter(tags=["Auth"])
 
-
-fake_user = {
-    "id": 1,
-    "email": "test@example.com",
-    "password": hash_password("1234"),
-    "username": "testuser",
-}
-
-
 class RefreshRequest(BaseModel):
     refresh_token: str
 
