@@ -1,9 +1,10 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 from app.core.config import settings
 
 DATABASE_URL = settings.POSTGRES_SERVER
+
 
 engine = create_engine(
     DATABASE_URL,
@@ -16,9 +17,6 @@ SessionLocal = sessionmaker(
     bind=engine
 )
 
-# 기존 코드 호환용
-Session = SessionLocal
-
 Base = declarative_base()
 
 def get_db():
@@ -27,3 +25,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def init_db():    
+    from app.db.models.user import User
+    Base.metadata.create_all(bind=engine)  # 그 다음 테이블 생성

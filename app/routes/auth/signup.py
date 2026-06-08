@@ -10,9 +10,6 @@ from app.core.security import hash_password
 # app에서 작동하는 것이 아닌 router화로 app과 연동 시켜주기 위한 사전 작업
 router = APIRouter(tags=["Auth"])
 
-Base.metadata.create_all(bind=engine)
-
-
 """
 회원 가입하기 위한 함수
 response 모델로 user 정보를 반환함
