@@ -1,7 +1,29 @@
-
 from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = "postgresql://admin:1234@postgres:5432/service_db" #임시 url
-engine = create_engine(DATABASE_URL)
-connection = engine.connect()
-print("PostgreSQL connected!")
+from core.config import settings
+
+DATABASE_URL = settings.POSTGRES_SERVER
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True
+)
+
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
+# 기존 코드 호환용
+Session = SessionLocal
+
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
