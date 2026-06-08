@@ -4,11 +4,13 @@ from sqlalchemy.orm import Session
 from app.schemas.auth.request import UserCreate
 from app.schemas.auth.response import UserResponse
 from app.db.models.user import User
-from app.db.db import get_db
+from app.db.db import get_db, engine, Base
 from app.core.security import hash_password
 
 # app에서 작동하는 것이 아닌 router화로 app과 연동 시켜주기 위한 사전 작업
 router = APIRouter(tags=["Auth"])
+
+Base.metadata.create_all(bind=engine)
 
 
 """
