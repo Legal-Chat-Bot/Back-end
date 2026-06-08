@@ -17,7 +17,7 @@ class UserCreate(BaseModel):
 
     email: EmailStr
     password: str = Field(min_length=8)
-    username: str
+    name: str
     social: SocialType = SocialType.NORMAL
     user_type: UserType = UserType.USER
 
