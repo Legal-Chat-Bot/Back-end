@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     POSTGRES_SERVER: str = Field(default=...)
 
     class Config:
-        env_file = "../.env"
+        env_file = "./.env"
         env_file_encoding = "utf-8"
 
 

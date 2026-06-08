@@ -2,11 +2,11 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from db.models.user import User as UserModel
-from db.db import get_db
-from schemas.auth.request import Login as LoginRequest
-from schemas.auth.response import Token
-from core.security import (
+from app.db.models.user import User as UserModel
+from app.db.db import get_db
+from app.schemas.auth.request import Login as LoginRequest
+from app.schemas.auth.response import Token
+from app.core.security import (
     hash_password,
     verify_password,
     create_access_token,
