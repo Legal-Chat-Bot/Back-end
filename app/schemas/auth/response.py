@@ -2,8 +2,8 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from uuid import UUID
 from typing import Generic, Optional, TypeVar
 from datetime import datetime
-from schemas.auth.request import SocialType, UserType
-from schemas.constants import StatusCode
+from app.schemas.auth.request import SocialType, UserType
+from app.schemas.constants import StatusCode
 
 T = TypeVar("T")
 
