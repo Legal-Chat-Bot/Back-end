@@ -1,8 +1,11 @@
 from pydantic_settings import BaseSettings
+import os
 from pydantic import Field 
 from typing import List
 
 
+# env경로 절대경로. env파일은 app폴더밖에 둬주세요.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "법률 챗봇"
@@ -12,7 +15,7 @@ class Settings(BaseSettings):
     # 역할에 따라 모델 분리
     # str은 헌팅식 python 문법입니다. typescript처럼 타입을 미리 정의를 해주는방식
     CLASSIFIER_MODEL: str = "qwen2.5:3b"    # 문서 분류용
-    EMBEDDING_MODEL: str = "bge-m3"         # 임베딩용
+    EMBEDDING_MODEL: str = Field(default=...)    # 임베딩용
     RAG_MODEL: str = "llama3.2:3b"          # RAG 응답용
 
     # 허용 주소값
@@ -30,7 +33,7 @@ class Settings(BaseSettings):
 
 
     class Config:
-        env_file = "../.env"
+        env_file = BASE_DIR+"/.env"
         env_file_encoding = "utf-8"
 
 
