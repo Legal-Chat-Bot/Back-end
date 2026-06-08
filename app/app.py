@@ -9,6 +9,8 @@ from app.routes.auth.signup import router as signup_router
 import os
 
 
+app = FastAPI()
+
 app = FastAPI(title=settings.PROJECT_NAME)
 app.include_router(login_router)
 app.include_router(signup_router)
