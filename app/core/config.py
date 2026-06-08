@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     RAG_MODEL: str = "llama3.2:3b"          # RAG 응답용
 
     # 허용 주소값
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
     # pincone
     # `...`(Ellipsis)은 "기본값은 비운다는 의미지만 env에서 시스템환경변수 같은 값을 최우선으로 가져오는 의미입니다.
@@ -28,9 +28,14 @@ class Settings(BaseSettings):
     PINECONE_CLOUD: str = Field(default=...)
     PINECONE_REGION: str = Field(default=...)
 
-    # db세팅.
-    DATABASE_URL: str = Field(default=...)
+    # Auth 세팅
+    SECRET_KEY: str = Field(default=...)
+    ALGORITHM: str = Field(default="HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60;           # 1시간
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 1; # 1일
 
+    # Postgres 세팅
+    POSTGRES_SERVER: str = Field(default=...)
 
     class Config:
         env_file = BASE_DIR+"/.env"
