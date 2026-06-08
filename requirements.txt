@@ -32,7 +32,6 @@ reportlab==4.5.1
 fpdf2==2.8.7
 typing
 pydantic
-python-jose[cryptography]
 pydantic[email]
 pydantic_settings
 pinecone
