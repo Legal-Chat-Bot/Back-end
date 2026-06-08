@@ -1,4 +1,5 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from uuid import UUID
 from typing import Generic, Optional, TypeVar
 from datetime import datetime
 from schemas.auth.request import SocialType, UserType
@@ -18,9 +19,11 @@ class Token(BaseModel):
     token_type: str = Field(serialization_alias="tokenType")
 
 class UserResponse(BaseModel):
-    id: int
+    user_id: UUID
     email: EmailStr
-    username: str
+    name: str
     social: SocialType
     user_type: UserType
     created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

@@ -41,6 +41,8 @@ def login(
 ):
     user = db.query(UserModel).filter(UserModel.email == login_data.email).first()
 
+    print("User found:", user)  # Debugging line to check if the user is found
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -54,7 +56,7 @@ def login(
         )
     token_data = {
         "sub": user.email,
-        "user_id": user.id,
+        "user_id": str(user.user_id),
     }
 
     access_token = create_access_token(data=token_data)
