@@ -5,11 +5,12 @@ from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 
-
 from app.core.config import settings
 from app.db.models.user import User
 from app.db.db import get_db
+from app.core.token_store import token_store
 import os
+import uuid
 
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
@@ -29,15 +30,15 @@ def hash_password(password: str):
 def verify_password(plain_password: str, hashed_password: str):
     return pwd_context.verify(plain_password, hashed_password)
 
-# token 생성 함수
+# token 생성 함수 고유 토큰으로 ID 부여
 def create_token(data: dict, expires_delta: timedelta, token_type: str):
     to_encode = data.copy()
-
     expire = datetime.now(timezone.utc) + expires_delta
 
     to_encode.update({
         "exp": expire,
         "type": token_type,
+        "jti": str(uuid.uuid4()),
     })
 
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -66,6 +67,7 @@ def decode_token(token: str) -> dict:
     except JWTError:
         raise ValueError("Invalid token")
     
+# 현재 사용자 정보 가져오기 (인증된 사용자)
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
@@ -73,18 +75,22 @@ def get_current_user(
     token = credentials.credentials
 
     try:
-        payload = jwt.decode(
-            token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM],
-        )
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
         email = payload.get("sub")
+        jti = payload.get("jti")
 
-        if email is None:
+        if email is None or jti is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="토큰 정보가 올바르지 않습니다.",
+            )
+
+        # ← 블랙리스트 체크
+        if token_store.is_blacklisted(jti):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="로그아웃된 토큰입니다.",
             )
 
     except JWTError:
@@ -94,7 +100,6 @@ def get_current_user(
         )
 
     user = db.query(User).filter(User.email == email).first()
-
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
