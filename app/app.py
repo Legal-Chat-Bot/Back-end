@@ -9,15 +9,18 @@ from app.routes.auth.signup import router as signup_router
 import os
 
 
+app = FastAPI()
+
 app = FastAPI(title=settings.PROJECT_NAME)
 app.include_router(login_router)
 app.include_router(signup_router)
 
 init_db()  # 애플리케이션 시작 시 DB 초기화 (테이블 생성 등)
 
+app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

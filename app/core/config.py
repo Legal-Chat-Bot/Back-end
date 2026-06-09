@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # str은 헌팅식 python 문법입니다. typescript처럼 타입을 미리 정의를 해주는방식
     CLASSIFIER_MODEL: str = "qwen2.5:3b"    # 문서 분류용
     EMBEDDING_MODEL: str = Field(default=...)    # 임베딩용
-    RAG_MODEL: str = "llama3.2:3b"          # RAG 응답용
+    RAG_MODEL: str = "law-qwen-7b"          # RAG 응답용
 
     # 허용 주소값
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     class Config:
         env_file = BASE_DIR+"/.env"
         env_file_encoding = "utf-8"
-
+        extra = "ignore"
 
 settings = Settings()
+
+# 지울거
+SECRET_KEY: str = Field(default=...)
+ALGORITHM: str = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
