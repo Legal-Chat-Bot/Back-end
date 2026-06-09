@@ -6,15 +6,15 @@ from pinecone.data import Index
 # _pc ← 언더스코어 = 모듈 내부에서만 쓰는 변수라는 관례 =>해당모듈에서만사용.
 # _ index와 마찬가지로 pinecone같은변수 구분용.
 # pc ← 언더스코어 없으면 외부에서 자유롭게 접근 가능 
-_pc: Pinecone | None = None #초기값 None
+_pc: Pinecone = None #초기값 None
 # 실제 인덱스 객체 ("index명" 인덱스에 대한 핸들)
 # Index 타입이거나, 아직 연결 안 했으면 None 
 # _ index중복 변수 구분용.
-_index: Index | None = None #마찬가지 초기값 None
+_index: Index  = None #마찬가지 초기값 None
 
 
 # 인덱스 연결
-def get_index() ->Index:
+def get_index() :
     global _pc, _index #전역변수 사용선언.=>함수끝나도 해당 변수 사용할수있게하기위함.
 
     if _pc is None:
@@ -72,9 +72,9 @@ def query(dense_vector: list[float], sparse_vector:dict, namespace:str, top_k:in
     return response.get("matches",[])
 
 # 삭제 로직 document_id값 기준
-def delete_by_document_id(documnet_id:str,  namespace:str) ->None:
+def delete_by_document_id(document_id:str,  namespace:str) ->None:
     get_index().delete(
         # eq pincone에서 equal의 의미 같다는 의미로사용함..
-        filter={"documnet_id":{"$eq":documnet_id}},
+        filter={"document_id":{"$eq":document_id}},
         namespace=namespace,
     )
