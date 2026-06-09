@@ -27,10 +27,14 @@ kss
 python-dotenv==1.2.2
 websockets==16.0
 # 보안 및 인증 (JWT, 암호화)
-bcrypt==5.0.0
+bcrypt==4.0.1
 passlib==1.7.4
 itsdangerous
 reportlab==4.5.1
 fpdf2==2.8.7
 typing
 pydantic
+python-jose[cryptography]
+pydantic[email]
+pydantic_settings
+pinecone
