@@ -28,16 +28,12 @@ class Settings(BaseSettings):
     PINECONE_CLOUD: str = Field(default=...)
     PINECONE_REGION: str = Field(default=...)
 
-<<<<<<< HEAD
     # Auth 세팅
     SECRET_KEY: str = Field(default=...)
     ALGORITHM: str = Field(default="HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60;           # 1시간
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 1; # 1일
-=======
-    # db세팅.
-    POSTGRES_SERVER: str = Field(default=...)
->>>>>>> a725088 (llm)
+    
 
     # Postgres 세팅
     POSTGRES_SERVER: str = Field(default=...)
