@@ -18,7 +18,7 @@ init_db()  # 애플리케이션 시작 시 DB 초기화 (테이블 생성 등)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOW_ORIGINS,
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
