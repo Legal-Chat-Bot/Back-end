@@ -26,7 +26,7 @@ class RefreshRequest(BaseModel):
 
 
 @router.post(
-    "/login",
+    "/auth/login",
     response_model=Token,
     response_model_by_alias=True,
     summary="로그인",
@@ -67,7 +67,7 @@ def login(
     )
 
 @router.post(
-    "/logout",
+    "/auth/logout",
     summary="로그아웃",
 )
 def logout(
@@ -96,7 +96,7 @@ def logout(
 
 
 @router.post(
-    "/refresh",
+    "/auth/refresh",
     response_model=Token,
     response_model_by_alias=True,
     summary="Access Token 재발급",

@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from app.schemas.auth.request import UserCreate
 from app.schemas.auth.response import UserResponse
 from app.db.models.user import User
-from app.db.db import get_db, engine, Base
-from app.core.security import hash_password
+from app.db.db import get_db
+from app.core.security import hash_password, get_current_user
 
 # app에서 작동하는 것이 아닌 router화로 app과 연동 시켜주기 위한 사전 작업
 router = APIRouter(tags=["Auth"])
@@ -15,7 +15,7 @@ router = APIRouter(tags=["Auth"])
 response 모델로 user 정보를 반환함
 """
 @router.post(
-    "/signup",
+    "/auth/signup",
     response_model=UserResponse,
     summary="회원가입",
 )
@@ -44,3 +44,30 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     return new_user
+
+@router.delete(
+    "/auth/user",
+    summary="회원 탈퇴",
+)
+def delete_user(
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="인증이 필요합니다.",
+        )
+
+    user = db.query(User).filter(User.email == current_user.email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다.",
+        )
+
+    db.delete(user)
+    db.commit()
+
+    return {"message": "회원 탈퇴가 완료되었습니다."}
