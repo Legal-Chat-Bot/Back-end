@@ -1,7 +1,14 @@
+from fastapi import Depends, status, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 from passlib.context import CryptContext
+
+
 from app.core.config import settings
+from app.db.models.user import User
+from app.db.db import get_db
 import os
 
 SECRET_KEY = settings.SECRET_KEY
@@ -11,6 +18,8 @@ REFRESH_TOKEN_EXPIRE_MINUTES = settings.REFRESH_TOKEN_EXPIRE_MINUTES
 
 # 비밀번호 암호화
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+security = HTTPBearer()
 
 # 비밀번호 hash화
 def hash_password(password: str):
@@ -56,3 +65,40 @@ def decode_token(token: str) -> dict:
         return payload
     except JWTError:
         raise ValueError("Invalid token")
+    
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+):
+    token = credentials.credentials
+
+    try:
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+        )
+
+        email = payload.get("sub")
+
+        if email is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="토큰 정보가 올바르지 않습니다.",
+            )
+
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="유효하지 않은 토큰입니다.",
+        )
+
+    user = db.query(User).filter(User.email == email).first()
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="사용자를 찾을 수 없습니다.",
+        )
+
+    return user
