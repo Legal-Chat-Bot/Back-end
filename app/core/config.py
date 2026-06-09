@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = Field(default="HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60;           # 1시간
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 1; # 1일
+    
 
     # Postgres 세팅
     POSTGRES_SERVER: str = Field(default=...)
