@@ -10,7 +10,7 @@ from app.core.config import settings
 
 # BAAI/bge-m3 : 허깅페이스에서 받아올 모델 이름
 # use_fp16=True : 숫자를 16비트로 저장
-_embed_model = BGEM3FlagModel("BAAI/bge-m3", use_fp16=True)
+_embed_model = BGEM3FlagModel(settings.EMBEDDING_MODEL, use_fp16=True)
 # Pincone 서버랑 연결하는 클라이언트 생성, API키로 인증
 _pc = Pinecone(api_key=settings.PINECONE_API_KEY)
 # 검색, 조회 부분은 _index한테 시킨다

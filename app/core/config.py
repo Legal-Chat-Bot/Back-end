@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # 역할에 따라 모델 분리
     # str은 헌팅식 python 문법입니다. typescript처럼 타입을 미리 정의를 해주는방식
     CLASSIFIER_MODEL: str = "qwen2.5:3b"    # 문서 분류용
-    EMBEDDING_MODEL: str = Field(default=...)    # 임베딩용
+    EMBEDDING_MODEL: str = Field(default="BAAI/bge-m3")    # 임베딩용
     RAG_MODEL: str = "law-qwen-7b"          # RAG 응답용
 
     # 허용 주소값
