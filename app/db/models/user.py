@@ -1,11 +1,22 @@
 import uuid
+import enum
 
-from sqlalchemy import Column, String, DateTime, Boolean
+from sqlalchemy import Column, String, DateTime, Boolean, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
 from app.db.db import Base
+
+# Python enum 클래스 먼저 정의
+class UserType(str, enum.Enum):
+    ADMIN = "ADMIN"
+    USER = "USER"
+
+class SocialType(str, enum.Enum):
+    NORMAL = "NORMAL"
+    GOOGLE = "GOOGLE"
+    KAKAO = "KAKAO"
 
 class User(Base):
     __tablename__ = "users"
@@ -21,7 +32,7 @@ class User(Base):
     password = Column(String(100), nullable=False)
     name = Column(String(100), nullable=False)
 
-    social = Column(String(20), nullable=False, default="LOCAL")
+    social = Column(Enum(SocialType), nullable=False, default=SocialType.NORMAL)
     social_id = Column(
         UUID(as_uuid=True),
         default=uuid.uuid4,
@@ -29,7 +40,7 @@ class User(Base):
     )
 
     is_activity = Column(Boolean, nullable=False, default=True)
-    user_type = Column(String(20), nullable=False, default="NORMAL")
+    user_type = Column(Enum(UserType), nullable=False, default=UserType.USER)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
@@ -42,3 +53,4 @@ class User(Base):
     # chat_sessions과 관계
     chat_sessions = relationship("Chat", back_populates="user")
     messages = relationship("Message", back_populates="user")
+    document = relationship("Document", back_populates="user")

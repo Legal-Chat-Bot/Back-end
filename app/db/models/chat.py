@@ -40,6 +40,7 @@ class Chat(Base):
     # ORM user 객체 관계 연결 설정
     user = relationship("User", back_populates="chat_sessions")
     messages = relationship("Message", back_populates="chat_sessions")
+    document = relationship("Document", back_populates="chat_sessions")
 
 # Messages 테이블
 class Message(Base):
