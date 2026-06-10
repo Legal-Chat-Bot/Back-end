@@ -41,7 +41,7 @@ def search_pinecone(
             top_k=top_k,
             include_metadata=True,
             # 공용 네임스페이스 (개인과 분리 저장한다는 전제)
-            namespace="public",
+            #namespace="public",
         )
         for m in public_res["matches"]:
             results.append({
@@ -72,7 +72,7 @@ def search_pinecone(
 
 
 # ③ 거름망 — 법률 도메인 질문인지 판별
-def is_legal_domain(search_results: list[dict], threshold: float = 0.5) -> bool:
+def is_legal_domain(search_results: list[dict], threshold: float = 0.6) -> bool:
     """
     검색 결과 최고 유사도가 임계값 미만이면 법률 질문 아님
     threshold는 나중에 법률/비법률 질문으로 테스트해서 조정
@@ -81,3 +81,17 @@ def is_legal_domain(search_results: list[dict], threshold: float = 0.5) -> bool:
         return False
     top_score = search_results[0]["score"]   # 이미 정렬돼 있음
     return top_score >= threshold
+
+def is_legal_file(extracted_text, threshold = 0.6):
+    """
+    파일에서 추출한 텍스트가 법률 도메인인지 판별
+    질문 거름망이랑 동일한 로직 / 입력만 다름
+    """
+    vector = embed_query(extracted_text[:500])
+    results = search_pinecone(
+        query_vector=vector,
+        context_mode='general',
+        user_id="",
+        top_k=3,
+    )
+    return is_legal_domain(results, threshold)
