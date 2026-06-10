@@ -3,9 +3,9 @@ import uuid
 from sqlalchemy import Column, String, DateTime, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 
 from app.db.db import Base
-
 
 class User(Base):
     __tablename__ = "users"
@@ -38,3 +38,7 @@ class User(Base):
         onupdate=func.now(),
     )
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    # chat_sessions과 관계
+    chat_sessions = relationship("Chat", back_populates="user")
+    messages = relationship("Message", back_populates="user")

@@ -107,3 +107,23 @@ def get_current_user(
         )
 
     return user
+
+# WebSocket 연결에서 토큰 검증 함수
+async def verify_ws_token(token: str, db: Session) -> User | None:
+    try:
+        payload = decode_token(token)
+        
+        email = payload.get("sub")
+        jti = payload.get("jti")
+
+        if not email or not jti:
+            return None
+
+        if token_store.is_blacklisted(jti):
+            return None
+
+    except ValueError:
+        return None
+
+    user = db.query(User).filter(User.email == email).first()
+    return user
