@@ -26,6 +26,5 @@ def get_db():
     finally:
         db.close()
 
-def init_db():    
-    from app.db.models.user import User
+def init_db():
     Base.metadata.create_all(bind=engine)  # 그 다음 테이블 생성
