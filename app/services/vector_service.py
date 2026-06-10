@@ -1,37 +1,38 @@
-# app/services/vector_service.py
-
+# BGE-M3 모델을 사용하기 위한 클래스
 from FlagEmbedding import BGEM3FlagModel
+# 클라우드 벡터 데이터 베이스인 Pinecone의 공식 파이썬 라이브러리
 from pinecone import Pinecone
+# 내가 설정한 객체
 from app.core.config import settings
 
 # ── 모델/클라이언트는 모듈 로드 시 1회만 초기화 ──
 # 매 요청마다 모델 로드하면 느리니까 전역으로 한 번만 올림
-_embed_model = BGEM3FlagModel("BAAI/bge-m3", use_fp16=True)
+
+# BAAI/bge-m3 : 허깅페이스에서 받아올 모델 이름
+# use_fp16=True : 숫자를 16비트로 저장
+_embed_model = BGEM3FlagModel(settings.EMBEDDING_MODEL, use_fp16=True)
+# Pincone 서버랑 연결하는 클라이언트 생성, API키로 인증
 _pc = Pinecone(api_key=settings.PINECONE_API_KEY)
+# 검색, 조회 부분은 _index한테 시킨다
 _index = _pc.Index(settings.PINECONE_INDEX_NAME)
 
 
-# ① 질문 임베딩
+# 질문을 숫자 벡터화시키는 파트
 def embed_query(text: str) -> list[float]:
     """질문 텍스트 → 1024차원 벡터"""
+    # text를 리스트에 감싸 
     result = _embed_model.encode([text])
     # BGE-M3는 dense_vecs에 dense 임베딩이 들어있음
     return result["dense_vecs"][0].tolist()
 
 
-# ② 검색 (context_mode 분기 + user_id 필터 + 병합)
+# 질문 벡터로 Pinecone에서 비슷한 자료 찾아오기
 def search_pinecone(
     query_vector: list[float],
     context_mode: str,
     user_id: str,
     top_k: int = 5,
 ) -> list[dict]:
-    """
-    context_mode에 따라 공용/개인 Pinecone 검색 후 병합
-    - general  : 공용만
-    - document : 개인만 (user_id 필터)
-    - hybrid   : 둘 다 검색 후 병합
-    """
     results = []
 
     # 공용 DB 검색 (general, hybrid)
@@ -40,33 +41,30 @@ def search_pinecone(
             vector=query_vector,
             top_k=top_k,
             include_metadata=True,
-            # 공용 네임스페이스 (개인과 분리 저장한다는 전제)
-            #namespace="public",
+            namespace="public",          # ← 수정 ①
         )
         for m in public_res["matches"]:
             results.append({
                 "score": m["score"],
-                "source_type": "legal_vector",   # 문서 enum: legal_vector
+                "source_type": "legal_vector",
                 "metadata": m["metadata"],
             })
 
-    # 개인 DB 검색 (document, hybrid) — user_id 필터 필수!
+    # 개인 DB 검색 (document, hybrid)
     if context_mode in ("document", "hybrid"):
         private_res = _index.query(
             vector=query_vector,
             top_k=top_k,
             include_metadata=True,
-            namespace="private",
-            filter={"user_id": user_id},   # ← 남의 문서 차단
+            namespace=user_id,           # ← 수정 ② (filter 삭제)
         )
         for m in private_res["matches"]:
             results.append({
                 "score": m["score"],
-                "source_type": "document",   # 문서 enum: document
+                "source_type": "document",
                 "metadata": m["metadata"],
             })
 
-    # 병합 결과를 유사도 높은 순으로 정렬 후 top_k개만
     results.sort(key=lambda x: x["score"], reverse=True)
     return results[:top_k]
 
