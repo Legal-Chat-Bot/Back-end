@@ -10,7 +10,7 @@
 검증 단위: '조'. 항은 검증하지 않음 (메타데이터에 조만 넣기로 약속)
 대조 대상: 메타데이터 article 우선, 없으면 본문(text) 폴백
 """
-
+from app.schemas.chat.response import ChatAnswerResponse
 import re
 
 # ── 법령 조문 추출용 정규식 ──
@@ -161,19 +161,14 @@ def format_sources(search_results: list[dict]) -> list[dict]:
     return sources
 
 
-def build_response(answer: str, search_results: list[dict]) -> dict:
-    """
-    최종 응답 조립 — chat_service에서 이거 하나만 부르면 됨
-
-    답변 + 검증결과 + 출처를 한 번에 묶어서 반환
-    """
+def build_response(answer: str, search_results: list[dict]) -> ChatAnswerResponse:
     verification = verify_answer(answer, search_results)
     sources = format_sources(search_results)
 
-    return {
-        "answer": answer,                              # 원본 답변 (A방식: 수정 안 함)
-        "verified": verification["verified"],          # 환각 없으면 True
-        "warnings": verification["warnings"],          # 사용자용 경고 (없으면 빈 리스트)
-        "unverified_refs": verification["unverified_refs"],  # 환각 의심 조문
-        "sources": sources,                            # 출처 리스트
-    }
+    return ChatAnswerResponse(
+        answer=answer,
+        verified=verification["verified"],
+        warnings=verification["warnings"],
+        unverified_refs=verification["unverified_refs"],
+        sources=sources,
+    )

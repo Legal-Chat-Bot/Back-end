@@ -27,3 +27,11 @@ class MessageResponse(BaseModel):
 
     class Config:
         from_attributes = True 
+
+# 챗봇 답변 + 환각 검증 응답용
+class ChatAnswerResponse(BaseModel):
+    answer: str
+    verified: bool = True
+    warnings: list[str] = []
+    unverified_refs: list[str] = []
+    sources: list[dict] = []
