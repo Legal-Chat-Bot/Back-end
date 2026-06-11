@@ -509,17 +509,22 @@ def blocks_to_text(blocks):
     return " ".join(texts)
 
 
-def process_pdf(pdf_bytes: bytes, zoom=2):
+def process_pdf(pdf_bytes: bytes, zoom=2, filetype: str = "pdf"):
     """
     PDF 전체 처리 함수.
 
     입력:
         pdf_bytes:
-            FastAPI에서 await file.read()로 읽은 PDF bytes
+            FastAPI에서 await file.read()로 읽은 파일 bytes.
+            PDF뿐 아니라 pymupdf가 지원하는 모든 포맷(pptx, docx, hwp 등) 가능.
 
         zoom:
-            PDF 렌더링 확대 비율
-            OCR 품질을 위해 2 정도 추천
+            PDF 렌더링 확대 비율.
+            OCR 품질을 위해 2 정도 추천.
+
+        filetype:
+            pymupdf.open()에 전달할 파일 타입 힌트.
+            기본값 "pdf". pptx/docx/hwp 등도 직접 지정 가능.
 
     처리 흐름:
         1. PDF 열기
@@ -545,7 +550,7 @@ def process_pdf(pdf_bytes: bytes, zoom=2):
 
     doc = pymupdf.open(
         stream=pdf_bytes,
-        filetype="pdf"
+        filetype=filetype
     )
 
     document = []
@@ -651,16 +656,17 @@ def process_pdf(pdf_bytes: bytes, zoom=2):
         # =========================
         document.append(page_text)
 
+    # =========================
+    # 9. 반환 형식 변환
+    # =========================
+    # 모든 페이지 처리가 끝난 뒤 한 번만 실행해야 한다.
+    # for 루프 안에 있으면 매 페이지마다 doc_text_result를 처음부터
+    # 재생성하게 되어 불필요한 연산이 반복된다.
+    doc_text_result = ""
 
-        # =========================
-        # 9. 반환 형식 변환
-        # =========================
-        doc_text_result = ""
-
-        for i in range(len(document)) :
-            doc_text_result += "\n--- " + str(i + 1) + " Page ---\n"
-            doc_text_result += document[i].replace(',', '')
-
+    for i, page_text in enumerate(document):
+        doc_text_result += "\n--- " + str(i + 1) + " Page ---\n"
+        doc_text_result += page_text.replace(',', '')
 
     doc.close()
 
