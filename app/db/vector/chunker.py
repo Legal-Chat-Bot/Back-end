@@ -211,9 +211,7 @@ class Chunker:
             5. 조 메타데이터 각 청크에 부착
         '''
         cfg = self.config
-
-        #
-
+        
         #1. already_cleaned=True면 정제 스킵
         if not already_cleaned:
             text = self._clean(text)
