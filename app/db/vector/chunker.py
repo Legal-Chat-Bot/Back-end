@@ -33,9 +33,9 @@ class Chunk:
 # 청킹 설정
 @dataclass
 class ChunkConfig:
-    max_chars: int = 500 #테스트용 청크글자수
-    overlap_chars: int = 50 # 청크 간 겹치는 글자 수(문맥 유지)
-    min_chars: int = 10 # 이보다 적으면 청크를 버림.
+    max_chars: int = 1000    # BGE-M3 최대 8192토큰, 한국어 기준 1000자 권장
+    overlap_chars: int = 100  # 문맥 유지를 위한 청크 간 겹치는 글자 수
+    min_chars: int = 10       # 이보다 적으면 청크를 버림
 
 
 # 메인 청킹
@@ -45,7 +45,7 @@ class Chunker:
     def __init__(self, config: ChunkConfig | None =None):
         self.config = config or ChunkConfig()
 
-    def chunk(self, text:str,already_cleaned: bool = False,    on_progress: Callable[[int, int], None] | None = None,  # 콜백 추가
+    def chunk(self, text:str,already_cleaned: bool = False,on_progress: Callable[[int, int], None] | None = None,  # 콜백 추가
 ) -> list[Chunk]:
         '''
         텍스트 -> Chunk 리스트 반환
