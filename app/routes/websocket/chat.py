@@ -97,9 +97,6 @@ async def websocket_chat(
                     "type": "session_created",
                     "session_id": str(chat_session.session_id),
                     "title": chat_session.title,
-                    "created_at": chat_session.created_at.isoformat()
-                    if chat_session.created_at
-                    else None,
                 })
 
             # 메시지 저장
