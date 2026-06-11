@@ -1,4 +1,4 @@
-from fastapi import Depends, status, HTTPException
+from fastapi import Depends, status, Request, Request, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
@@ -20,7 +20,17 @@ REFRESH_TOKEN_EXPIRE_MINUTES = settings.REFRESH_TOKEN_EXPIRE_MINUTES
 # 비밀번호 암호화
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-security = HTTPBearer()
+class CustomHTTPBearer(HTTPBearer):
+    async def __call__(self, request: Request):  # Request 타입 추가
+        try:
+            return await super().__call__(request)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="토큰이 없습니다.",
+            )
+
+security = CustomHTTPBearer()
 
 # 비밀번호 hash화
 def hash_password(password: str):

@@ -15,9 +15,8 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    security
 )
-
-security = HTTPBearer()
 
 router = APIRouter(tags=["Auth"])
 
