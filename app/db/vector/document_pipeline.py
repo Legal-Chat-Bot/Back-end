@@ -22,6 +22,7 @@ from app.db.vector.read_ocr import process_pdf
 
 class DocType(str, Enum):
     PDF     = "pdf"
+    PPT     = "ppt"
     PPTX    = "pptx"
     DOCX    = "docx"
     HWP     = "hwp"
@@ -35,7 +36,7 @@ def detect_doc_type(filename: str) -> DocType:
     ext = filename.split(".")[-1].lower() if "." in filename else ""
     mapping = {
         "pdf": DocType.PDF, "pptx": DocType.PPTX, "docx": DocType.DOCX,
-        "hwp": DocType.HWP, "hwpx": DocType.HWPX,
+        "hwp": DocType.HWP, "hwpx": DocType.HWPX, "ppt": DocType.PPT,
         "txt": DocType.TXT,  "xlsx": DocType.XLSX,
     }
     return mapping.get(ext, DocType.UNKNOWN)
@@ -47,8 +48,8 @@ def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
     if doc_type == DocType.UNKNOWN:
         raise ValueError(f"지원하지 않는 파일 형식입니다. (파일명: {filename})")
 
-    # ── [분기 1] PDF, PPTX, DOCX, XLSX → PyMuPDF + OCR ──
-    if doc_type in [DocType.PDF, DocType.PPTX, DocType.DOCX, DocType.XLSX]:
+    # ── [분기 1] PDF, PPTX, DOCX, XLSX, PPT → PyMuPDF + OCR ──
+    if doc_type in [DocType.PDF, DocType.PPTX, DocType.DOCX, DocType.XLSX, DocType.PPT]:
         try:
             fitz_doc = pymupdf.open(stream=BytesIO(file_bytes), filetype=doc_type.value)
             return process_pdf(fitz_doc)
