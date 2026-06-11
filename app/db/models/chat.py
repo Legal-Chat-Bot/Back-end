@@ -30,7 +30,7 @@ class Chat(Base):
         onupdate=func.now(),
         nullable=True,
     )
-    create_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = updated_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
