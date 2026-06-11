@@ -51,7 +51,7 @@ def _collect_topk_refs(search_results: list[dict]) -> set[str]:
     Top-K 검색 결과에서 '정답 조문 집합'을 모음 (정규화된 형태로)
 
     우선순위:
-      1순위: metadata["article"] (성호가 "형법 제268조" 형태 문자열로 저장)
+      1순위: metadata["article"] ("형법 제268조" 형태 문자열로 저장)
       2순위: 없으면 metadata["text"] 본문에서 정규식으로 추출 (폴백)
     """
     valid_refs = set()
