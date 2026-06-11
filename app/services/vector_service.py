@@ -5,7 +5,7 @@ vector_service: 질문 임베딩 + 하이브리드 검색 + 거름망
 - 검색:   client.query (dense 70% + sparse 30% 하이브리드, alpha=0.7)
 - namespace: client.public_namespace() / client.user_namespace()
 
-기존에 직접 모델/Pinecone을 올리던 코드는 성호님 모듈 호출로 대체함.
+기존에 직접 모델/Pinecone을 올리던 코드는 모듈 호출로 대체함.
 """
 
 # 벡터 모듈
