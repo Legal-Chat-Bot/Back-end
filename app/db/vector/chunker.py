@@ -45,7 +45,7 @@ class Chunker:
     def __init__(self, config: ChunkConfig | None =None):
         self.config = config or ChunkConfig()
 
-    def chunk(self, text:str,already_cleaned: bool = False,    on_progress: Callable[[int, int], None] | None = None,  # 콜백 추가
+    def chunk(self, text:str,already_cleaned: bool = False,on_progress: Callable[[int, int], None] | None = None,  # 콜백 추가
 ) -> list[Chunk]:
         '''
         텍스트 -> Chunk 리스트 반환
