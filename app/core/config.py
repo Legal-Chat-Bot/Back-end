@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     CLASSIFIER_MODEL: str = "qwen2.5:3b"    # 문서 분류용
     EMBEDDING_MODEL: str = Field(default=...)    # 임베딩용
     RAG_MODEL: str = "law-qwen-7b"          # RAG 응답용
+    #임베딩모델 설정
+    SPARSE_THRESHOLD: float = Field(default=...)
+    EMBEDDING_DEVICE: str= Field(default=...) 
+    EMBEDDING_BATCH: int= Field(default=...)
 
     # 허용 주소값
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]

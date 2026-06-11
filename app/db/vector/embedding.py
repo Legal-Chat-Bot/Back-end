@@ -18,12 +18,12 @@ from app.core.config import settings
 _model: BGEM3FlagModel | None = None
 
 # 모델 설정
-EMBEDDING_DEVICE = "cpu"
-EMBEDDING_BATCH = 8
+EMBEDDING_DEVICE = settings.EMBEDDING_DEVICE
+EMBEDDING_BATCH = settings.EMBEDDING_BATCH
 
 # ✅ sparse 노이즈 필터 임계값 (이 값 이하 토큰은 버림)
 # BGE-M3 lexical_weights는 0에 가까운 토큰이 많아 노이즈가 됨
-SPARSE_THRESHOLD = 0.01
+SPARSE_THRESHOLD = settings.SPARSE_THRESHOLD
 
 
 def get_model() -> BGEM3FlagModel:
