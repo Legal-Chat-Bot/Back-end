@@ -6,11 +6,14 @@ from app.schemas.auth.response import UserResponse
 from app.core.security import get_current_user
 
 router = APIRouter(tags=["User"])
-@router.get("/user/userInfo", summary="내 정보 조회")
+@router.get(
+    "/user/userInfo",
+    response_model=UserResponse,
+    summary="내 정보 조회"
+)
 def get_user_info(
     current_user: str = Depends(get_current_user),
     db: Session = Depends(get_db),
-    response_model=UserResponse,
 ):
     if not current_user:
         raise HTTPException(

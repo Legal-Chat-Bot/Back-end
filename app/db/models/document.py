@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, LargeBinary, ForeignKey, Text, Enum, DateTime
+from sqlalchemy import Column, String, ForeignKey, Text, Enum, DateTime, BigInteger, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -11,7 +11,8 @@ class FileType(str, enum.Enum):
     PDF = "PDF"
     HWP = "HWP"
     DOCX = "DOCX"
-    CSV = "XLSX"
+    XLSX = "XLSX"
+    TXT = "TXT"
 
 class Status(str, enum.Enum):
     UPLOADED = "UPLOADED"
@@ -43,11 +44,11 @@ class Document(Base):
 
     file_name = Column(String(100), nullable=False)
     file_ext = Column(Enum(FileType), nullable=False, default=FileType.PDF)
-    file_size_bytes = Column(LargeBinary)
+    file_size_bytes = Column(BigInteger, nullable=True)
     storage_url = Column(Text, nullable=False)
     status = Column(Enum(Status), nullable=False, default=Status.READY)
     summary = Column(Text, nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     
     # ORM user객체 chat객체 관계 연결 설정
     user = relationship("User", back_populates="document")

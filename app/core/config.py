@@ -6,6 +6,8 @@ from typing import List
 
 # env경로 절대경로. env파일은 app폴더밖에 둬주세요.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Downloads경로 절대경로로 설정 ~/Downloads
+DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), "Downloads")
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "법률 챗봇"
@@ -38,9 +40,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60;           # 1시간
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 1; # 1일
     
-
     # Postgres 세팅
     POSTGRES_SERVER: str = Field(default=...)
+
+    # Upload Directory 세팅
+    UPLOAD_DIR: str = DOWNLOAD_DIR+"/uploads"
 
     class Config:
         env_file = BASE_DIR+"/.env"
