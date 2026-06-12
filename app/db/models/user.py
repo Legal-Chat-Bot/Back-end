@@ -51,6 +51,6 @@ class User(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     # chat_sessions과 관계
-    chat_sessions = relationship("Chat", back_populates="user")
-    messages = relationship("Message", back_populates="user")
-    document = relationship("Document", back_populates="user")
+    chat_sessions = relationship("Chat", back_populates="user", cascade="all, delete-orphan")
+    messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
+    document = relationship("Document", back_populates="user", cascade="all, delete-orphan")
