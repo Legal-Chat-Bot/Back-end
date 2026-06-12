@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 import re
 import unicodedata
+from collections import Counter
 from kss import Kss
 
 
@@ -38,16 +39,17 @@ _RE_ARTICLE_NUM = re.compile(r'제\s*(\d+)\s*조(?:의\s*(\d+))?')
 # "구 " 접두사, 괄호 안 연도 표현(개정 전의 것) 있는 경우 제외하고 법령명만 추출
 # 법령명 추출용 정규식 (탐욕적 매칭 방지 버전)
 _RE_LAW_NAME = re.compile(
-    r'(?:구\s+)?'                      # 선택: "구 " 접두사
+    r'(?:^|(?<=\s))'          # ✅ 문장 시작 또는 앞이 반드시 공백
+    r'(?:구\s+)?'
     r'('
-    r'[가-힣]+(?:\s+[가-힣]+){0,5}\s+에\s+관한\s+[가-힣]*(?:법|법률)' # 1. ~에 관한 법률 형태 (최대 6~7단어)
+    r'[가-힣]+(?:\s+[가-힣]+){0,5}\s+에\s+관한\s+[가-힣]*(?:법|법률)'
     r'|'
-    r'[가-힣]{2,10}\s+[가-힣]{2,10}(?:법|법률|규정|규칙|령|조례)'      # 2. 2단어 형태 (예: 개인정보 보호법)
+    r'[가-힣]{2,10}\s+[가-힣]{2,10}(?:법|법률|규정|규칙|령|조례)'
     r'|'
-    r'[가-힣]{2,12}(?:법|법률|규정|규칙|령|조례)'                      # 3. 1단어 형태 (예: 도로교통법)
+    r'[가-힣]{2,12}(?:법|법률|규정|규칙|령|조례)'
     r')'
-    r'(?:\s*[\(（][^\)）]*[\)）])?'     # 선택: 괄호 부분
-    r'(?=\s*제\s*\d+\s*조|\s|$)',       # 뒤에 조항이나 공백/끝
+    r'(?:\s*[\(（][^\)）]*[\)）])?'
+    r'(?=\s*제\s*\d+\s*조|\s|$)',
     re.MULTILINE,
 )
 
@@ -90,33 +92,37 @@ def _extract_article(text: str) -> str:
         return ""
     return f"제{m.group(1)}조"
 
-# 법령명 추출 헬퍼 (후처리 및 예외 필터링 추가)
+# 법령명 추출 헬퍼 수정
 def extract_law_name(text: str) -> str:
-    '''
-    텍스트 전체에서 법령명을 추출한다.
-    글자 수 제한 및 조사 제거 후처리, 예외 단어 필터링이 적용됨.
-    '''
-    m = _RE_LAW_NAME.search(text)
-    if not m:
+    """
+    텍스트 전체에서 법령명 후보를 모두 찾고,
+    가장 많이 등장하는 것을 이 문서의 법령명으로 반환.
+    """
+    matches = _RE_LAW_NAME.findall(text)  # 전체 매칭
+    if not matches:
         return ""
-    
-    law_name = m.group(1).strip()
-    
-    # 💡 [방어 코드] "농도를 기초로 도로교통법" 처럼 앞에 조사나 동사가 붙어 나온 경우 잘라내기
-    words = law_name.split()
-    if len(words) > 1 and "에 관한" not in law_name:
-        # 첫 단어가 조사나 어미(~로, ~고, ~에, ~를, ~을, ~의, ~은, ~는)로 끝나면 첫 단어 버림
-        if words[0].endswith(('로', '고', '에', '를', '을', '의', '과', '와', '은', '는')):
-            law_name = " ".join(words[1:])
-            
-    # 💡 [예외 필터링] 법으로 끝나지만 법령명이 아닌 것 제외
-    EXCLUDE_LIST = ["한글맞춤법", "표준어규정", "외래어표기법"]
-    EXCLUDE_SUFFIXES = ('방법', '수법', '기법', '불법', '합법', '위법', '적법', '준법', '탈법', '사법', '입법')
 
-    if law_name in EXCLUDE_LIST or law_name.endswith(EXCLUDE_SUFFIXES):
+    # 후보 정제
+    candidates = []
+    EXCLUDE_LIST = ["한글맞춤법", "표준어규정", "외래어표기법"]
+    EXCLUDE_SUFFIXES = ('방법', '수법', '기법', '불법', '합법', '위법',
+                        '적법', '준법', '탈법', '사법', '입법')
+
+    for name in matches:
+        name = name.strip()
+        if not name:
+            continue
+        if name in EXCLUDE_LIST or name.endswith(EXCLUDE_SUFFIXES):
+            continue
+        candidates.append(name)
+
+    if not candidates:
         return ""
-        
-    return law_name
+
+    # 가장 많이 등장한 법령명 반환
+    counter = Counter(candidates)
+    return counter.most_common(1)[0][0]
+            
 
 # 법률 구조 기반 1차 분리
 def _split_by_law_structure(text:str) ->list[str]:

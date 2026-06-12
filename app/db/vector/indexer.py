@@ -1,5 +1,4 @@
 # ============================================================
-# indexer.py
 # 인덱싱 파이프라인
 #
 # 문서 → 거름망 → 청킹 → 임베딩 → Pinecone upsert
@@ -21,12 +20,24 @@ from app.db.vector.embedding import embed_texts
 from app.db.vector.chunker import Chunker, Chunk
 
 
+
+
+UPSERT_BATCH_SIZE = 200  # Pinecone 권장값
+
+# 배치 upsert 한번에 파일이 올라가면 오류가 발생하기에 방지용
+def _upsert_in_batches(vectors: list[dict], namespace: str) -> None:
+    for i in range(0, len(vectors), UPSERT_BATCH_SIZE):
+        batch = vectors[i:i + UPSERT_BATCH_SIZE]
+        pinecone.upsert(vectors=batch, namespace=namespace)
+
+
 @dataclass
 class IndexingResult:
     document_id: str
     doc_type: str
     total_chunks: int
     namespace: str
+    synced_public_chunks: int = 0  # 공용 DB에 동기화된 청크 수
 
 
 # ── 청커 초기화 (ChunkConfig 기본값 사용) ──────────────────
@@ -35,7 +46,7 @@ _chunker = Chunker()
 
 # ── 텍스트 거름망 ──────────────────────────────────────────
 def _filter_text(text: str) -> str | None:
-    '''너무 짧거나 의미 없는 텍스트 걸러냄'''
+    """너무 짧거나 의미 없는 텍스트 걸러냄"""
     text = text.strip()
     if len(text) < 20:
         return None
@@ -52,7 +63,7 @@ def build_pinecone_vectors(
     embeddings: list[list[float]],
     sparse_vectors: list[dict],
 ) -> list[dict]:
-    '''
+    """
     청크 + 임베딩 → Pinecone upsert용 벡터 리스트 조립
 
     메타데이터:
@@ -63,7 +74,7 @@ def build_pinecone_vectors(
       - category     : 문서 카테고리
       - law_date     : 법령 시행일 (유저 문서는 빈 문자열)
       - created_at / updated_at
-    '''
+    """
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     vectors = []
 
@@ -111,12 +122,12 @@ def _build_article_key(chunk: Chunk, law_name: str, category: str) -> str:
 # ── 공용 DB 동기화 ────────────────────────────────────────
 async def _sync_public_if_newer(
     chunks: list[Chunk],
-    user_embs: list,
+    user_embs: list,           # index_user_document에서 이미 만든 임베딩 재사용
     category: str,
     law_name: str,
     user_law_date: str,
-):
-    '''
+) -> int:
+    """
     유저 문서의 law_date가 공용 DB보다 최신이면
     내용이 유사한 공용 벡터의 text / law_date / updated_at을 갱신한다.
 
@@ -126,16 +137,20 @@ async def _sync_public_if_newer(
       3. 유저가 더 최신이고 유사도 임계값(SCORE_THRESHOLD) 이상이면
          해당 공용 벡터를 유저 text로 교체 후 upsert
       4. 한 공용 벡터는 한 번만 갱신 (중복 갱신 방지)
-    '''
+
+    반환: 실제로 갱신된 공용 벡터 수
+    """
     if not user_law_date:
-        return
+        return 0
 
     # 유사도 임계값: 이 점수 미만이면 다른 내용으로 판단해 스킵
     SCORE_THRESHOLD = 0.75
 
     pub_namespace = pinecone.public_namespace()
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    updated_pub_ids: set[str] = set()
+    synced = 0
+    updated_pub_ids: set[str] = set()  # 동일 공용 벡터 중복 갱신 방지
+
     update_vectors: list[dict] = []
 
     for chunk, emb in zip(chunks, user_embs):
@@ -186,7 +201,10 @@ async def _sync_public_if_newer(
         })
 
     if update_vectors:
-        pinecone.upsert(vectors=update_vectors, namespace=pub_namespace)
+        _upsert_in_batches(update_vectors, pub_namespace)
+        synced = len(update_vectors)
+
+    return synced
 
 
 # ── 공용(법률) 문서 인덱싱 ────────────────────────────────
@@ -231,7 +249,7 @@ async def index_public_document(
     )
 
     # 5. Pinecone upsert
-    pinecone.upsert(vectors=vectors, namespace=namespace)
+    _upsert_in_batches(vectors, namespace)
 
     return IndexingResult(
         document_id=str(document_id),
@@ -284,11 +302,11 @@ async def index_user_document(
     )
 
     # 5. Pinecone upsert (유저 네임스페이스)
-    pinecone.upsert(vectors=vectors, namespace=namespace)
+    _upsert_in_batches(vectors, namespace)
 
     # 6. 공용 DB 동기화: 유저 law_date가 공용보다 최신이면 공용 벡터 갱신
     # embedding_results 재사용 → 추가 임베딩 비용 없음
-    await _sync_public_if_newer(
+    synced = await _sync_public_if_newer(
         chunks=chunks,
         user_embs=embedding_results,
         category=category,
@@ -301,4 +319,5 @@ async def index_user_document(
         doc_type=category,
         total_chunks=len(chunks),
         namespace=namespace,
+        synced_public_chunks=synced,
     )
