@@ -6,6 +6,7 @@ from typing import List
 
 # env경로 절대경로. env파일은 app폴더밖에 둬주세요.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Downloads경로 절대경로로 설정 ~/Downloads
 DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), "Downloads")
 
 class Settings(BaseSettings):
