@@ -8,14 +8,14 @@ from app.db.db import get_db
 from app.core.security import hash_password, get_current_user
 
 # app에서 작동하는 것이 아닌 router화로 app과 연동 시켜주기 위한 사전 작업
-router = APIRouter(tags=["Auth"])
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 """
 회원 가입하기 위한 함수
 response 모델로 user 정보를 반환함
 """
 @router.post(
-    "/auth/signup",
+    "/signup",
     response_model=UserResponse,
     summary="회원가입",
 )
@@ -46,7 +46,7 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 @router.delete(
-    "/auth/user",
+    "/user",
     summary="회원 탈퇴",
 )
 def delete_user(

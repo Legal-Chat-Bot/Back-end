@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     # Upload Directory 세팅
     UPLOAD_DIR: str = DOWNLOAD_DIR+"/uploads"
 
+    # Oauth 세팅
+    KAKAO_REST_API_KEY: str = Field(default=...)
+    KAKAO_REDIRECT_URI: str = Field(default=...)
+    KAKAO_CLIENT_SECRET: str = Field(default=...)
+
+
     class Config:
         env_file = BASE_DIR+"/.env"
         env_file_encoding = "utf-8"
