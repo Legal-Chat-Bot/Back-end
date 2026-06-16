@@ -9,12 +9,7 @@ import pymupdf
 # ============================================================
 # 중요:
 # 이 환경변수들은 반드시 paddleocr import 전에 선언해야 한다.
-#
-# 네가 겪은 오류:
-# NotImplementedError:
-# ConvertPirAttribute2RuntimeAttribute not support ...
-#
-# 이 오류는 PaddleOCR 내부에서 oneDNN / PIR 관련 문제로 발생할 수 있다.
+# 오류가 PaddleOCR 내부에서 oneDNN / PIR 관련 문제로 발생할 수 있다.
 # 그래서 CPU 환경에서는 아래 옵션을 꺼서 안정성을 높인다.
 os.environ["FLAGS_use_mkldnn"] = "0"
 os.environ["FLAGS_use_onednn"] = "0"
@@ -671,36 +666,3 @@ def process_pdf(pdf_bytes: bytes, zoom=2, filetype: str = "pdf"):
     doc.close()
 
     return doc_text_result
-
-
-# def document_to_text(document):
-#     """
-#     document 배열을 요약 모델에 넣기 좋은 문자열로 변환한다.
-
-#     document 구조:
-#     [
-#         {
-#             "page": 1,
-#             "items": [...],
-#             "text": "..."
-#         }
-#     ]
-
-#     반환:
-#     [페이지 1]
-#     ...
-    
-#     [페이지 2]
-#     ...
-#     """
-
-#     lines = []
-
-#     for page in document:
-#         page_number = page.get("page")
-#         text = page.get("text", "")
-
-#         lines.append(f"[페이지 {page_number}]")
-#         lines.append(text)
-
-#     return "\n\n".join(lines).strip()
