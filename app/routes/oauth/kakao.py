@@ -21,8 +21,7 @@ def kakao_login_url():
 
     프론트에서 카카오 로그인 버튼 클릭 시 호출
     카카오 로그인 페이지 URL을 반환
-
-    프론트는 이 URL로 사용자를 이동시키면 됨
+    
     """
     login_url = get_kakao_login_url()
     return {"login_url": login_url}
@@ -52,17 +51,16 @@ async def kakao_callback(
         is_new_user: 신규 가입 여부 (프론트에서 UI 분기용)
     """
 
-    # ── STEP 1. 인가 코드 → 카카오 액세스 토큰 ──
+    # ── 인가 코드 → 카카오 액세스 토큰 ──
     kakao_access_token = await get_kakao_access_token(body.code)
 
-    # ── STEP 2. 카카오 액세스 토큰 → 사용자 정보 ──
+    # ── 카카오 액세스 토큰 → 사용자 정보 ──
     kakao_user = await get_kakao_user_info(kakao_access_token)
 
     kakao_id = kakao_user["kakao_id"]      # 카카오 고유 ID
     email = kakao_user.get("email")         # 이메일 (미동의 시 None)
     nickname = kakao_user.get("nickname", "카카오유저")
 
-    # ── STEP 3. DB에서 기존 카카오 유저 확인 ──
     # social == KAKAO 이고 social_id == 카카오 ID 인 유저 조회
     user = (
         db.query(User)
@@ -76,7 +74,7 @@ async def kakao_callback(
     is_new_user = False  # 신규 가입 여부 플래그
 
     if not user:
-        # ── STEP 3-1. 신규 유저 → 자동 회원가입 ──
+        # 신규 유저 → 자동 회원가입 ──
 
         # 같은 이메일로 일반 가입(NORMAL)된 계정이 있는지 체크
         # (카카오 이메일 = 기존 일반 가입 이메일 충돌 방지)
@@ -103,7 +101,7 @@ async def kakao_callback(
 
         is_new_user = True  # 신규 가입 플래그
 
-    # ── STEP 4. 우리 서비스 JWT 발급 ──
+    # ── 우리 서비스 JWT 발급 ──
     # 기존 일반 로그인과 동일한 방식으로 JWT 발급
     access_token = create_access_token(data={"sub": user.email})
     refresh_token = create_refresh_token(data={"sub": user.email})

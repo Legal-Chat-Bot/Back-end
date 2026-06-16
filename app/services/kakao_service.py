@@ -52,7 +52,7 @@ async def get_kakao_access_token(code: str) -> str:
                 "client_id": settings.KAKAO_REST_API_KEY,      # 카카오 REST API 키
                 "redirect_uri": settings.KAKAO_REDIRECT_URI,   # 인가 코드 요청 시 사용한 redirect_uri와 동일해야 함
                 "code": code,                          # 카카오로부터 받은 인가 코드
-                # client_secret은 카카오 Developers에서 활성화한 경우에만 포함
+                # client_secret은 카카오 Developers에서 활성화한 경우에만 포함, rest-api key에서 설정 가능
                 **({"client_secret": settings.KAKAO_CLIENT_SECRET} if settings.KAKAO_CLIENT_SECRET else {}),
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -82,7 +82,7 @@ async def get_kakao_user_info(access_token: str) -> dict:
     카카오 액세스 토큰으로 사용자 정보를 조회
 
     카카오 동의항목에서 설정한 항목만 받아올 수 있음
-    - 닉네임: kakao_account.profile.nickname
+    - 닉네임: kakao_account.profile.nickname (이용 시 동의로 설정하여 필요없이 가져올 수 있음)
     - 이메일: kakao_account.email (동의 필요)
 
     Args:
