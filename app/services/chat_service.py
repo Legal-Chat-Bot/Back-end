@@ -4,7 +4,7 @@ chat_service: RAG 전체 흐름 지휘 (Service 계층)
 역할:
 - 흩어진 부품(vector / message_crud / prompt / service / hallucination)을
   순서대로 호출해서 최종 답변을 완성하는 "리모컨"
-- 의수의 웹소켓 라우터가 이 함수 하나만 호출하면 됨
+- 웹소켓 라우터가 이 함수 하나만 호출하면 됨
 
 흐름:
   이전대화 → (context_mode 자동판단) → (검색쿼리 맥락보강)
