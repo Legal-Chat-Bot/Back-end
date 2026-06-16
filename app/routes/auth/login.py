@@ -18,14 +18,14 @@ from app.core.security import (
     security
 )
 
-router = APIRouter(tags=["Auth"])
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 class RefreshRequest(BaseModel):
     refresh_token: str
 
 
 @router.post(
-    "/auth/login",
+    "/login",
     response_model=Token,
     response_model_by_alias=True,
     summary="로그인",
@@ -66,7 +66,7 @@ def login(
     )
 
 @router.post(
-    "/auth/logout",
+    "/logout",
     summary="로그아웃",
 )
 def logout(
@@ -95,7 +95,7 @@ def logout(
 
 
 @router.post(
-    "/auth/refresh",
+    "/refresh",
     response_model=Token,
     response_model_by_alias=True,
     summary="Access Token 재발급",

@@ -29,15 +29,13 @@ class User(Base):
     )
 
     email = Column(String(100), unique=True, nullable=False, index=True)
+    # 소셜 로그인은 password가 없어서
     password = Column(String(100), nullable=False)
     name = Column(String(100), nullable=False)
 
     social = Column(Enum(SocialType), nullable=False, default=SocialType.NORMAL)
-    social_id = Column(
-        UUID(as_uuid=True),
-        default=uuid.uuid4,
-        nullable=False,
-    )
+    # social_id: UUID → String으로 변경
+    social_id = Column(String(100), nullable=True)  # 카카오 ID는 문자열
 
     is_activity = Column(Boolean, nullable=False, default=True)
     user_type = Column(Enum(UserType), nullable=False, default=UserType.USER)

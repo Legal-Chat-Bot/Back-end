@@ -14,7 +14,7 @@ from app.db.models.chat import Chat
 from app.db.models.document import Document, FileType, Status
 from app.schemas.chat.response import DocumentResponse
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["Chat"])
 
 # Enum Type 코드
 EXTENSION_TO_FILE_TYPE = {

@@ -5,9 +5,9 @@ from app.db.db import get_db
 from app.schemas.auth.response import UserResponse
 from app.core.security import get_current_user
 
-router = APIRouter(tags=["User"])
+router = APIRouter(prefix="/user", tags=["User"])
 @router.get(
-    "/user/userInfo",
+    "/userInfo",
     response_model=UserResponse,
     summary="내 정보 조회"
 )

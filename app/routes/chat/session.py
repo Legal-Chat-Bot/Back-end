@@ -9,7 +9,7 @@ from app.db.models.user import User
 from app.db.models.chat import Message
 from app.schemas.chat.response import ChatSessionResponse, MessageResponse
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["Chat"])
 
 # 채팅방 생성
 @router.post(
