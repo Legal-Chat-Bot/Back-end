@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.schemas.auth.request import UserCreate
 from app.schemas.auth.response import UserResponse
-from app.db.models.user import User
+from app.db.models.user import User, SocialType
 from app.db.db import get_db
 from app.core.security import hash_password, get_current_user
+from app.services.kakao_service import kakao_unlink
 
 # app에서 작동하는 것이 아닌 router화로 app과 연동 시켜주기 위한 사전 작업
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -49,7 +50,7 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     "/user",
     summary="회원 탈퇴",
 )
-def delete_user(
+async def delete_user(
     current_user: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -66,6 +67,10 @@ def delete_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="사용자를 찾을 수 없습니다.",
         )
+    
+    # 카카오 유저면 unlink 추가
+    if user.social == SocialType.KAKAO:
+        await kakao_unlink(user.social_id)
 
     db.delete(user)
     db.commit()

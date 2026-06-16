@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = DOWNLOAD_DIR+"/uploads"
 
     # Oauth 세팅
+    KAKAO_ADMIN_KEY: str = Field(default=...)
     KAKAO_REST_API_KEY: str = Field(default=...)
     KAKAO_REDIRECT_URI: str = Field(default=...)
     KAKAO_CLIENT_SECRET: str = Field(default=...)

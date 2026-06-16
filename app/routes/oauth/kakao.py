@@ -9,13 +9,14 @@ from app.services.kakao_service import (
     get_kakao_login_url,
     get_kakao_access_token,
     get_kakao_user_info,
-)
-from app.core.security import create_access_token, create_refresh_token  # 기존 JWT 발급 함수
+)  # 기존 JWT 발급 함수
+from app.core.security import create_access_token, create_refresh_token
+from app.services.kakao_service import kakao_unlink
 
 router = APIRouter(prefix="/auth/kakao", tags=["OAUTH"])
 
 @router.get("/login-url")
-def kakao_login_url():
+def kakao_login_url(force_login: bool = False):
     """
     [GET] /auth/kakao/login-url
 
@@ -23,7 +24,7 @@ def kakao_login_url():
     카카오 로그인 페이지 URL을 반환
     
     """
-    login_url = get_kakao_login_url()
+    login_url = get_kakao_login_url(force_login=force_login)
     return {"login_url": login_url}
 
 
@@ -52,10 +53,10 @@ async def kakao_callback(
     """
 
     # ── 인가 코드 → 카카오 액세스 토큰 ──
-    kakao_access_token = await get_kakao_access_token(body.code)
+    kakao_token = await get_kakao_access_token(body.code)
 
     # ── 카카오 액세스 토큰 → 사용자 정보 ──
-    kakao_user = await get_kakao_user_info(kakao_access_token)
+    kakao_user = await get_kakao_user_info(kakao_token["access_token"])
 
     kakao_id = kakao_user["kakao_id"]      # 카카오 고유 ID
     email = kakao_user.get("email")         # 이메일 (미동의 시 None)
@@ -104,6 +105,7 @@ async def kakao_callback(
     # ── 우리 서비스 JWT 발급 ──
     # 기존 일반 로그인과 동일한 방식으로 JWT 발급
     access_token = create_access_token(data={"sub": user.email})
+    # refresh_token = kakao_refresh_token
     refresh_token = create_refresh_token(data={"sub": user.email})
 
     return KakaoLoginResponse(

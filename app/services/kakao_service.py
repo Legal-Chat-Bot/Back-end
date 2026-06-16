@@ -13,7 +13,7 @@ KAKAO_TOKEN_URL = "https://kauth.kakao.com/oauth/token"
 KAKAO_USER_INFO_URL = "https://kapi.kakao.com/v2/user/me"
 
 
-def get_kakao_login_url() -> str:
+def get_kakao_login_url(force_login: bool = False) -> str:
     """
     카카오 로그인 페이지 URL을 생성해서 반환
     프론트에서 이 URL로 사용자를 이동시키면 카카오 로그인 화면이 뜸
@@ -23,15 +23,18 @@ def get_kakao_login_url() -> str:
     - client_id          : 우리 앱의 카카오 REST API 키
     - redirect_uri       : 로그인 완료 후 카카오가 인가 코드를 보낼 주소
     """
-    return (
+    url = (
         f"{KAKAO_AUTH_URL}"
         f"?response_type=code"
         f"&client_id={settings.KAKAO_REST_API_KEY}"
         f"&redirect_uri={settings.KAKAO_REDIRECT_URI}"
     )
+    if force_login:
+        url += "&prompt=login"
+    return url
 
 
-async def get_kakao_access_token(code: str) -> str:
+async def get_kakao_access_token(code: str) :
     """
     카카오로부터 받은 인가 코드로 카카오 액세스 토큰을 발급받음
 
@@ -74,7 +77,7 @@ async def get_kakao_access_token(code: str) -> str:
             detail="카카오 액세스 토큰이 응답에 없습니다.",
         )
 
-    return token_data["access_token"]
+    return token_data
 
 
 async def get_kakao_user_info(access_token: str) -> dict:
@@ -133,3 +136,19 @@ async def get_kakao_user_info(access_token: str) -> dict:
         "email": kakao_account.get("email"),                # 미동의 시 None
         "nickname": profile.get("nickname", "카카오유저"),   # 닉네임 없으면 기본값
     }
+
+async def kakao_unlink(kakao_id: str) -> bool:
+    """
+    Admin 방식으로 카카오 연결 해제
+    서버의 Admin 키로 직접 호출 → 유저 토큰 불필요
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://kapi.kakao.com/v1/user/unlink",
+            headers={
+                "Authorization": f"KakaoAK {settings.KAKAO_ADMIN_KEY}",  # Admin 키
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data={"target_id_type": "user_id", "target_id": kakao_id},
+        )
+    return response.status_code == 200
