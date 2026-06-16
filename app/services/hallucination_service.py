@@ -155,6 +155,7 @@ def format_sources(search_results: list[dict]) -> list[dict]:
             "article": metadata.get("article"),
             "law_date": metadata.get("law_date"),
             "excerpt": excerpt,
+            "text": text,
             "score": round(r.get("score", 0), 4),
         })
 

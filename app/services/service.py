@@ -30,14 +30,17 @@ async def generate_answer(messages : list[dict]):
             # 너무 낮으면 단조롭고, 너무 높으면 답변이 흔들릴 수 있다
             "top_p" : 0.9,
             # 모델이 반복되는 말을 억제하는 설정
-            "repeat_penalty" : 1.1,
+            "repeat_penalty" : 1.5,
+            "num_thread" : 4,
+            "num_ctx" : 16384,      # 그릇 크게 → 10턴 안 짤림
+            "num_predict" : 280,    # 답변 짧게 → timeout 안 남
         }
     } 
     # Ollama와 통신하기 위한 
     # async with : 작업이 끝나면 자동으로 정리
     # httpx.AsyncClient : 비동기 방식으로 HTTP 요청을 보냄
     # timeout=300.0 : 요청을 최대 300초까지 기다리겠다
-    async with httpx.AsyncClient(timeout=300.0) as client:
+    async with httpx.AsyncClient(timeout=600.0) as client:
         # await : 비동기 함수 결과를 기다림
         # client.post : POST 요청을 보내는 코드 
         response = await client.post(
