@@ -4,6 +4,7 @@ from typing import Optional
 from datetime import datetime, timezone
 import time
 
+from app.services.chat_service import process_chat
 from app.db.db import get_db
 from app.db.models.chat import Chat
 from app.core.security import verify_ws_token, decode_token
@@ -106,9 +107,14 @@ async def websocket_chat(
                 question=message_text,
                 question_at=datetime.now(timezone.utc),
             )
-
-            # TODO: 여기에 실제 AI 호출 로직 연결
-            ai_answer = "AI 응답 데이터"
+            # 웹소켓 파이프라인 연결
+            response = await process_chat(
+                db=db,
+                user_id=str(user.user_id),
+                session_id=str(chat_session.session_id),
+                question=message_text,
+            )
+            ai_answer = response.answer
 
             msg.answer = ai_answer
             msg.answer_at = datetime.now(timezone.utc)
@@ -134,6 +140,21 @@ async def websocket_chat(
                 if msg.answer_at
                 else None,
             })
+            """
+            # 프론트에 필요한 정보(가져다 쓰시오)
+            await websocket.send_json({
+                "type": "message",
+                "session_id": str(chat_session.session_id),
+                "message_id": str(getattr(msg, "message_id", "")),
+                "question": msg.question,
+                "answer": msg.answer,
+                "verified": response.verified,
+                "warnings": response.warnings,
+                "sources": response.sources,
+                "question_at": msg.question_at.isoformat() if msg.question_at else None,
+                "answer_at": msg.answer_at.isoformat() if msg.answer_at else None,
+            })
+            """
 
     except WebSocketDisconnect:
         pass
