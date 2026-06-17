@@ -1,28 +1,22 @@
-fastapi
-uvicorn
-python-multipart
-pymupdf
-pdfplumber
-pytesseract
-pillow
-tensorflow
-paddleocr
+fastapi==0.136.1
+uvicorn==0.46.0
+python-multipart==0.0.28
+pymupdf==1.27.2.3
+pillow==12.2.0
+tensorflow==2.21.0
+paddleocr==3.3.0
 paddlepaddle==3.1.1
 # opencv-python
-opencv-python-headless
+opencv-python-headless==4.10.0.84
 # backend에서 ollama 호출
-requests
+requests==2.34.1
 # backend에서 postgreSQL 연결
-sqlalchemy
-psycopg2-binary
-olefile
-openpyxl
-PyPDF2
-python-pptx
-python-docx
-numpy
-pathlib
-kss
+sqlalchemy==2.0.49
+psycopg2-binary==2.9.12
+olefile==0.47
+openpyxl==3.1.5
+numpy==2.3.5
+kss==6.0.4
 
 python-dotenv==1.2.2
 websockets==16.0
@@ -31,10 +25,10 @@ bcrypt==4.0.1
 passlib==1.7.4
 itsdangerous
 reportlab==4.5.1
-typing
-pydantic
-python-jose[cryptography]
-pydantic[email]
-pydantic_settings
-pinecone
-FlagEmbedding
+typing==3.7.4.3
+pydantic==2.13.4
+python-jose[cryptography]==3.5.0
+pydantic[email]==2.13.4
+pydantic_settings==2.14.1
+pinecone==9.1.0
+FlagEmbedding==1.4.0

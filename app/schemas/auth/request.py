@@ -21,6 +21,13 @@ class UserCreate(BaseModel):
     social: SocialType = SocialType.NORMAL
     user_type: UserType = UserType.USER
 
+class UserUpdate(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
+    email: str
+    name: str
+
+
 class Login(BaseModel):
     email: EmailStr
     password: str
