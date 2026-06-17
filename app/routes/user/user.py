@@ -6,6 +6,7 @@ from app.schemas.auth.response import UserResponse
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/user", tags=["User"])
+
 @router.get(
     "/userInfo",
     response_model=UserResponse,
@@ -23,3 +24,14 @@ def get_user_info(
 
     return current_user
     
+
+@router.update(
+    "/profile",
+    response_model=UserResponse,
+    summary="프로필 업데이트"
+)
+def update_user_profile(
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return current_user
