@@ -4,7 +4,7 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.db.models.user import User, SocialType
+from app.db.models.user import User as UserModel
 from app.db.db import get_db
 from app.schemas.auth.request import Login as LoginRequest
 from app.schemas.auth.response import Token
@@ -17,7 +17,6 @@ from app.core.security import (
     decode_token,
     security
 )
-from app.services.kakao_service import kakao_logout
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -35,7 +34,7 @@ def login(
     login_data: LoginRequest,
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.email == login_data.email).first()
+    user = db.query(UserModel).filter(UserModel.email == login_data.email).first()
 
     if not user:
         raise HTTPException(status_code=401, detail="이메일이 올바르지 않습니다.")
@@ -70,7 +69,7 @@ def login(
     "/logout",
     summary="로그아웃",
 )
-async def logout(
+def logout(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ):
@@ -80,26 +79,13 @@ async def logout(
         payload = decode_token(token)
     except ValueError:
         raise HTTPException(status_code=401, detail="유효하지 않은 토큰입니다.")
-    
-    print(f"token : {payload}")
 
     jti = payload.get("jti")
     exp = payload.get("exp")
     user_id = payload.get("user_id")
 
-    print(f"유저정보 : {user_id}")
-
     if not jti or not exp or not user_id:
         raise HTTPException(status_code=401, detail="토큰 정보가 올바르지 않습니다.")
-    
-    # DB에서 유저 조회
-    user = db.query(User).filter(User.user_id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
-    
-    # 카카오 유저면 unlink 추가
-    if user.social == SocialType.KAKAO:
-        await kakao_logout(user.social_id)
 
     # 블랙리스트 등록 + 세션 제거
     token_store.blacklist_token(jti, exp)
