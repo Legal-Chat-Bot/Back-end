@@ -11,7 +11,6 @@ from app.services.kakao_service import (
     get_kakao_user_info,
 )  # 기존 JWT 발급 함수
 from app.core.security import create_access_token, create_refresh_token
-from app.services.kakao_service import kakao_unlink
 
 router = APIRouter(prefix="/auth/kakao", tags=["OAUTH"])
 
@@ -104,9 +103,9 @@ async def kakao_callback(
 
     # ── 우리 서비스 JWT 발급 ──
     # 기존 일반 로그인과 동일한 방식으로 JWT 발급
-    access_token = create_access_token(data={"sub": user.email})
+    access_token = create_access_token(data={"sub": user.email, "user_id": str(user.user_id)})
     # refresh_token = kakao_refresh_token
-    refresh_token = create_refresh_token(data={"sub": user.email})
+    refresh_token = create_refresh_token(data={"sub": user.email, "user_id": str(user.user_id)})
 
     return KakaoLoginResponse(
         access_token=access_token,
