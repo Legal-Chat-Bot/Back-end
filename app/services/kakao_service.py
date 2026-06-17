@@ -152,3 +152,15 @@ async def kakao_unlink(kakao_id: str) -> bool:
             data={"target_id_type": "user_id", "target_id": kakao_id},
         )
     return response.status_code == 200
+
+async def kakao_logout(kakao_id: str) -> bool:
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://kapi.kakao.com/v1/user/logout",
+            headers={
+                "Authorization": f"KakaoAK {settings.KAKAO_ADMIN_KEY}",  # Admin 키
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data={"target_id_type": "user_id", "target_id": kakao_id},
+        )
+    return response.status_code == 200
