@@ -9,6 +9,12 @@
 #   - law_name 없을 때 chunk.law_name(텍스트 추출) → category+"법" 순으로 폴백
 #   - index_user_document에 law_date 추가
 #   - 유저 문서 law_date가 공용보다 최신이면 공용 DB text/law_date/updated_at 동기화
+#   - index_user_document에 clean_text 파라미터 추가
+#       유저가 업로드하는 문서가 법률 구조(조)를 가진 문서인지 여부에 따라
+#       chunker의 조(article) 탐지를 켜고 끌 수 있도록 함.
+#       · clean_text=True  (기본값) → 조 탐지 수행 (법령, 판례 등 법률 문서)
+#       · clean_text=False → 조 탐지 스킵 (회의록, 매뉴얼 등 일반 문서)
+#     공용(법률) 문서는 항상 조 구조를 가지므로 index_public_document는 True로 고정.
 # ============================================================
 
 from dataclasses import dataclass
@@ -223,7 +229,8 @@ async def index_public_document(
         raise ValueError(f"[{document_id}] 텍스트가 너무 짧거나 비어있음")
 
     # 2. 청킹 (공용 문서는 법률 구조 분리 활성화 + 정제 스킵)
-    chunks = _chunker.chunk(filtered, already_cleaned=True)
+    # article이 이미 존재하는 공용문서는 False처리
+    chunks = _chunker.chunk(filtered, already_cleaned=True, clean_text=False)
     if not chunks:
         raise ValueError(f"[{document_id}] 청킹 결과 없음")
 
@@ -306,6 +313,8 @@ async def index_user_document(
 
     # 6. 공용 DB 동기화: 유저 law_date가 공용보다 최신이면 공용 벡터 갱신
     # embedding_results 재사용 → 추가 임베딩 비용 없음
+    # clean_text=False로 들어온 일반 문서는 law_date비우기.
+    # 호출하는 쪽에서 law_date 자체를 비워서 넘기는 것을 권장합니다.
     synced = await _sync_public_if_newer(
         chunks=chunks,
         user_embs=embedding_results,

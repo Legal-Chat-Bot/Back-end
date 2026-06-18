@@ -1,13 +1,19 @@
 # 청킹 파이프라인
 #
 # 문서 → 조 구조 분리(1차) → KSS 문장 분리(2차) → 청크 조립 → 청크 리스트 반환
-#
+
 # 개선 사항:
 #   - 법률 문서 구조(조) 기반 1차 분리 추가
 #   - Chunk에 article(조) 메타데이터 추가
 #   - already_cleaned 플래그로 정제 스킵 지원
 #   - 텍스트에서 법령명 자동 추출 (extract_law_name)
 #   - Chunk에 law_name 메타데이터 추가
+#   - clean_text 파라미터로 조 구조 탐지(article detection) 여부를 호출 시점에 제어
+#       · clean_text=True  → 조(article) 탐지 수행 (유저가 올린 법률 문서 등)
+#       · clean_text=False → 조가 있다고 판단하고 스킵.
+#         (데이터셋처럼 article이 이미 주어진 경우)
+#     ChunkConfig.use_law_structure는 Chunker 생성 시점의 "기본값" 역할만 하며,
+#     실제 분기는 chunk() 호출 시 전달된 clean_text 값을 우선 사용한다.
 
 from dataclasses import dataclass, field
 from typing import Callable
@@ -30,16 +36,24 @@ _RE_ARTICLE = re.compile(
     r'(?=제\s*\d+\s*조(?:의\s*\d+)?(?:\s*[\(（][^\)）]*[\)）])?)',
     re.MULTILINE,
 )
+# 조 번호 탐색 시 살펴볼 앞부분 길이.
+# "제15조의2(개인정보의 수집·이용에 관한 동의 및 고지사항)" 처럼
+# 조문 제목(괄호)이 길어지는 경우가 있어 50자보다 여유를 둔 80자로.
+_ARTICLE_SEARCH_WINDOW = 80
 
 # 조 번호 추출용 (텍스트에서 "제N조" 추출)
 _RE_ARTICLE_NUM = re.compile(r'제\s*(\d+)\s*조(?:의\s*(\d+))?')
 
 # 법령명 추출용
-# "구 X법", "X법", "X에 관한 법률" 등 + 뒤에 "(..." 또는 "제N조" 또는 공백이 오는 패턴
-# "구 " 접두사, 괄호 안 연도 표현(개정 전의 것) 있는 경우 제외하고 법령명만 추출
-# 법령명 추출용 정규식 (탐욕적 매칭 방지 버전)
+#1.문장 시작 또는 앞이 반드시 공백을 확인.
+#2.구 법령 법률 체크
+#3. ()안에 있는거 체크
+#4.ㅁㅁ에관한 법,법률인지 체크
+#5.그냥 ㅁㅁ법,ㅁㅁ법률, ㅁㅁ규정,ㅁㅁ령,ㅁㅁ조례인지 체크
+#6.마지막 ㅁㅁ법,ㅁㅁ법률,ㅁㅁ규칙,ㅁㅁ령,ㅁㅁ조례 체크
+#7.이제 ex) 제1조 체크
 _RE_LAW_NAME = re.compile(
-    r'(?:^|(?<=\s))'          # ✅ 문장 시작 또는 앞이 반드시 공백
+    r'(?:^|(?<=\s))'          
     r'(?:구\s+)?'
     r'('
     r'[가-힣]+(?:\s+[가-힣]+){0,5}\s+에\s+관한\s+[가-힣]*(?:법|법률)'
@@ -77,19 +91,21 @@ class Chunk:
 class ChunkConfig:
     max_chars: int = 1000    # BGE-M3 최대 8192토큰, 한국어 기준 1000자 권장
     overlap_chars: int = 100  # 문맥 유지를 위한 청크 간 겹치는 글자 수
-    min_chars: int = 10       # 이보다 적으면 청크를 버림
+    min_chars: int = 20       # 이보다 적으면 청크를 버림 텍스트가 너무짧은거 방지. 
     use_law_structure: bool = True  # 법률 구조 기반 1차 분리 사용 여부 법령명때문에
 
 # 조 정보 추출 헬퍼
-# 🎯 [핵심 수정] 뒤에 무엇이 오든 무조건 '제N조' 형태로만 반환
+# 뒤에 무엇이 오든 무조건 '제N조' 형태로만 반환 =>이게 뒤에 항이던 뭐던 제1조 이런게 있는 경우가 있어서 이렇게했습니다.
 def _extract_article(text: str) -> str:
     '''
     텍스트 앞부분에서 조 번호를 추출하여 '제N조' 형태로만 반환합니다.
     뒤에 붙는 '의 2', '의 규정' 등은 모두 무시하고 깔끔하게 잘라냅니다.
+    조문 제목 괄호가 길어지는 경우도 있어서 80으로 수정합니다.=>_RE_ARTICLE_NUM
     '''
-    m = _RE_ARTICLE_NUM.search(text[:50])
+    m = _RE_ARTICLE_NUM.search(text[:_ARTICLE_SEARCH_WINDOW]) 
     if not m:
         return ""
+    # article검색해서 그룹화한 값중 0은 텍스트이므로 1이 숫자값.
     return f"제{m.group(1)}조"
 
 # 법령명 추출 헬퍼 수정
@@ -119,7 +135,9 @@ def extract_law_name(text: str) -> str:
     if not candidates:
         return ""
 
-    # 가장 많이 등장한 법령명 반환
+    # 가장 많이 등장한 법령명 반환 
+    # 이걸 사용하는 것은 텍스트에 법명이 중복으로 나오는 경우가 있어서 가장 많이 나오는 값을 반환.
+    # 여러개 법명이 나오긴하나 자주나오는것이 해당 법률텍스트와 의미가 맞는것 이라판단해서.
     counter = Counter(candidates)
     return counter.most_common(1)[0][0]
             
@@ -205,7 +223,12 @@ class Chunker:
 
 
 # 메인청킹부분
-    def chunk(self, text:str,already_cleaned: bool = False,on_progress: Callable[[int, int], None] | None = None,  # 콜백 추가
+    def chunk(
+            self, 
+            text:str,
+            already_cleaned: bool = False,        
+            clean_text: bool =True, #조 찾는 로직 해야할지 안할지 기본 찾기로 설정.
+            on_progress: Callable[[int, int], None] | None = None,  # 콜백 추가
 ) -> list[Chunk]:
         '''
         텍스트 -> Chunk 리스트 반환
@@ -215,8 +238,17 @@ class Chunker:
             3. 각 섹션별 KSS 문장 분리 (2차)
             4. max_chars 기준 청크 조립 + overlap 적용
             5. 조 메타데이터 각 청크에 부착
+        Args:
+            already_cleaned: True면 _clean()에 의한 정제(유니코드 정규화 등)를 스킵.
+            clean_text: 조(article) 탐지 여부.
+                - True  → 법률 구조 기반 1차 분리 + 법령명 추출 수행
+                - False → 분리/추출 스킵, 텍스트 전체를 단일 섹션으로 처리
         '''
         cfg = self.config
+
+        #false이면 ChunkConfig 기본값을 사용.
+        do_detect_article = cfg.use_law_structure if clean_text is False else clean_text
+
         
         #1. already_cleaned=True면 정제 스킵
         if not already_cleaned:
@@ -226,7 +258,8 @@ class Chunker:
         if cfg.use_law_structure:
             sections =_split_by_law_structure(text)
         else:
-            sections = [text]
+            # 텍스트의 공백 지우기.
+            sections = [text.strip()] if text.strip() else []
         
         all_chunks: list[Chunk] = []
         chunk_idx = 0
@@ -234,14 +267,15 @@ class Chunker:
         total_sections = len(sections)
 
         # 전체 텍스트에서 법령명 1회 추출(섹션별로 반복 추출x)
-        doc_law_name = extract_law_name(text)
+        # clean_text=False인 경우 조 탐지를 안 하므로 법령명 추출도 같이 스킵
+        doc_law_name = extract_law_name(text) if do_detect_article else ""
 
         for sec_i, section in enumerate(sections):
             if not section.strip():
                 continue
             
             #조 정보 추출
-            article = _extract_article(section)
+            article = _extract_article(section) if do_detect_article else ""
 
             # 3. KSS 문장 분리 (2차)
             # 섹션이 max_chars 이하인경우 KSS 없이 섹션 그대로 사용한다.
@@ -275,9 +309,9 @@ class Chunker:
         return all_chunks
     
     #청크 확인용.
-    def chunk_with_stats(self, text: str) -> dict:
+    def chunk_with_stats(self, text: str,clean_text: bool=True) -> dict:
         '''청크 결과 + 통계 변환 (디버깅/검증용)'''
-        chunks = self.chunk(text)
+        chunks = self.chunk(text, clean_text=clean_text)
         return {
             "total_chunks": len(chunks),
             "total_chars": sum(c.char_count for c in chunks),
