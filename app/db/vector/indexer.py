@@ -30,6 +30,7 @@ from app.crud.chunk_crud import (
     get_chunks_by_document,
     delete_chunks_from_rdb,
     create_chunks_bulk,
+    update_chunk_text,
 )
 
 
@@ -139,6 +140,7 @@ async def _sync_public_if_newer(
     category: str,
     law_name: str,
     user_law_date: str,
+    db: Session,  #RDB chunk_text 갱신용.  
 ) -> int:
     """
     유저 문서의 law_date가 공용 DB보다 최신이면
@@ -211,6 +213,14 @@ async def _sync_public_if_newer(
             "sparse_values": emb.sparse,
             "metadata":      new_meta,
         })
+
+        # RDB: chunk_text / law_date 교체 (pub_id == vector_id로 직접 매핑)
+        update_chunk_text(
+            db=db,
+            vector_id=UUID(pub_id),
+            new_text=chunk.text,
+            new_law_date=user_law_date,
+        )
 
     if update_vectors:
         _upsert_in_batches(update_vectors, pub_namespace)
@@ -332,6 +342,7 @@ async def index_document(
             category=category,
             law_name=law_name,
             user_law_date=law_date,
+            db=db,
         )
 
     return IndexingResult(

@@ -96,6 +96,31 @@ def get_chunks_by_document(db: Session, document_id:uuid.UUID) -> list[Chunk]:
         .all()
     )
 
+def update_chunk_text(
+    db:Session,
+    vector_id: uuid.UUID,
+    new_text: str,
+    new_law_date: str
+) -> bool:
+    """
+    공용 벡터 갱신 시 RDB의 chunk_text / law_date를 업데이트.
+    vector_id는 Pinecone pub_id와 동일하므로 직접 매핑 가능.
+
+    반환: 갱신 성공 여부 (행이 없으면 False)
+    """
+    chunk = db.query(Chunk).filter(Chunk.vector_id == vector_id).first()
+    if chunk is None:
+        return False
+    chunk.chunk_text = new_text
+    if new_law_date:
+        chunk.law_date = _parse_law_date(new_law_date)
+    try:
+        db.commit()
+        db.refresh(chunk)
+    except Exception:
+        db.rollback()
+        raise
+    return True
 #"RDB 전용" vectordb삭제 부분이랑 구분.
 def delete_chunks_from_rdb(db: Session, document_id: uuid.UUID) -> int:
     '''
