@@ -2,14 +2,23 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN pip install --root-user-action=ignore \
-    torch==2.3.1+cpu \
-    --index-url https://download.pytorch.org/whl/cpu
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
 
-# 나머지 의존성 설치
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+
+RUN python -m pip install --upgrade pip setuptools wheel
+
 RUN pip install --root-user-action=ignore -r requirements.txt
 
-# kss는 PyYAML 충돌 때문에 deps 없이 설치
 RUN pip install --root-user-action=ignore --no-deps kss==6.0.4
 
 COPY . .
