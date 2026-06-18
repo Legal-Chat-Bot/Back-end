@@ -12,7 +12,11 @@ RUN apt-get update \
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir --no-deps --root-user-action=ignore -r requirements.txt || \
-    pip install --no-cache-dir --root-user-action=ignore --no-deps -r requirements.txt
+RUN pip install --no-cache-dir \
+    --root-user-action=ignore \
+    --prefer-binary \
+    -r requirements.txt
+
+COPY . .
 
 CMD ["uvicorn", "app.app:app", "--host", "0.0.0.0", "--port", "8000"]
