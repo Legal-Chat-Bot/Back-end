@@ -106,7 +106,14 @@ async def websocket_chat(
                 user_id=user.user_id,
                 question=message_text,
                 question_at=datetime.now(timezone.utc),
+                answer = "",
+                answer_at=datetime.now(timezone.utc)
             )
+
+            db.add(msg)
+            db.commit()
+            db.refresh(msg)            
+
             # 웹소켓 파이프라인 연결
             response = await process_chat(
                 db=db,
