@@ -63,7 +63,7 @@ async def process_chat(
         if has_file:
             context_mode = "hybrid"
 
-    # print(f"1:{context_mode}")
+    print(f"1:{context_mode}")
 
     # 1. 이전 대화 이력 가져오기
     #    최신순 반환 → history[0]이 직전 질문
@@ -75,7 +75,7 @@ async def process_chat(
             limit=history_limit,
         )
 
-    # print(f"2:{history}")
+    print(f"2:{history}")
 
     # 2. 검색용 쿼리 맥락 보강 (방법 A)
     #    지시어 후속질문은 직전 질문을 앞에 붙여 맥락 살림
@@ -86,7 +86,7 @@ async def process_chat(
         if last_question:
             search_query = f"{last_question} {question}"
 
-    # print(f"3:{history}")
+    print(f"3:{history}")
 
     # 3. Pinecone 검색 → Top-K
     search_results = search_pinecone(
@@ -96,7 +96,7 @@ async def process_chat(
         top_k=top_k,
     )
 
-    # print(f"4:{search_results}")
+    print(f"4:{search_results}")
 
     # 4. 거름망 — 법률 질문인지 판별
     is_legal = is_legal_domain(search_results)
@@ -109,7 +109,7 @@ async def process_chat(
             sources=[],
         )
     
-    # print(f"5:{is_legal}")
+    print(f"5:{is_legal}")
 
     # 5. 프롬프트 조립
     messages = assemble_messages(
@@ -118,14 +118,14 @@ async def process_chat(
         history=history,
     )
 
-    # print(f"6:{messages}")
+    print(f"6:{messages}")
 
     # 6. LLM 호출
     answer = await generate_answer(messages)
-    # print(f"7:{answer}")
+    print(f"7:{answer}")
 
     # 7. 환각 검증 + 출처 포맷 → 최종 응답
     response = build_response(answer, search_results)
-    # print(f"8:{response}")
+    print(f"8:{response}")
 
     return response
