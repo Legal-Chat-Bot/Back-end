@@ -15,6 +15,13 @@
 #   - 개정일은 정규식 1차 추출 → Claude 2차 보완
 #   - 카테고리는 사전 정의된 목록 중 선택 (확장 가능)
 #   - 실패 시 빈 값 반환 (파이프라인 전체가 죽지 않도록)
+# clean_text 옵션
+#   summarize() / summarize_document()는 호출 시점에 문서 유형(법률 문서 여부)을
+#   모르는 경우가 많다(카테고리 분류 자체가 이 파이프라인의 결과물이기 때문).
+#   따라서 기본값은 True로 두고, chunker._split_by_law_structure()가 조 구조가
+#   없는 문서는 자동으로 전체 텍스트를 단일 섹션으로 반환하는 안전장치에 보냄.
+#   다만 호출하는 쪽(예: 업로드 API)이 문서 유형을 이미 알고 있다면(예: 회의록으로
+#   명시 업로드) clean_text=False를 넘겨 불필요한 조 탐지 비용을 줄일 수 있다.
 # ============================================================
 
 # Python에서 타입 힌트를 문자열로 처리하도록 하는 기능
@@ -23,7 +30,6 @@ from __future__ import annotations
 import re
 import json
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Optional
 
 from langchain_community.llms import Ollama
@@ -125,7 +131,7 @@ def _extract_revised_date_regex(text: str) -> Optional[str]:
         if m:
             return _to_iso(m)
         
-    return "" #날짜 못찾으면 "" 빈 string값반환
+    return None #날짜 못찾으면 "" =>type불일치 문제로인해서 None으로 변경
 
 # 샘플 청크 선택 => 토큰(컨텍스트) 절약용으로 사용하기위해서입니다.
 
@@ -228,7 +234,7 @@ class DocumentSummarize:
     def __init__(self, chunk_config: ChunkConfig | None = None):
         self._chunker = Chunker(chunk_config)
 
-    def summarize(self, extracted_text: str) ->DocumentMeta:
+    def summarize(self, extracted_text: str, clean_text: bool = True) ->DocumentMeta:
         '''
         텍스트 -> DocumentMeta로 반환
 
@@ -238,6 +244,15 @@ class DocumentSummarize:
           3. 샘플 청크 선택 + 요약용 텍스트 조립
           4. 로컬 llm 호출
           5. JSON 파싱 + DocumentMeta 조립
+          
+          추가
+            extracted_text: 문서 본문 텍스트
+            clean_text: 조(article) 탐지 여부를 chunker에 그대로 전달합니다.
+                - True  (기본값) → 법률 구조(조) 탐지 시도. 구조가 없는 문서는
+                  chunker 내부 안전장치(_split_by_law_structure)가 자동으로 값을 넣습니다.
+                  전체 텍스트를 단일 섹션으로 처리하므로 일반 문서에도 안전함.
+                - False → 조 탐지를 명시적으로 스킵합니다. 
+                또한 법률문서 확인을 1차 카테고리로 확인 2차 청킹하고 임베딩해서 vectordb랑 유사도 비교 낮으면 다른파일.
         '''
         #strip 띄워쓰기 방지
         if not extracted_text or not extracted_text.strip():
@@ -245,7 +260,7 @@ class DocumentSummarize:
         
         #1.청킹
         try:
-            chunks = self._chunker.chunk(extracted_text)
+            chunks = self._chunker.chunk(extracted_text, clean_text=clean_text)
         except Exception as e:
             return DocumentMeta(error=f"청킹 실패: {e}")
         
@@ -253,6 +268,7 @@ class DocumentSummarize:
             return DocumentMeta(error="청킹 결과가 없습니다.")
         
         # 법령명 (chunker로 추출한 값, 첫 청크 기준)
+        # clean_text=False면 chunker가 law_name을 채우지 않으므로 자연히 빈 문자열
         law_name = chunks[0].law_name if chunks else ""
 
         # 2.정규식 날짜 추출
@@ -322,7 +338,7 @@ class DocumentSummarize:
 
 # 파이프라인 편의함수
 
-def summarize_document(extracted_text:str, chunk_config:ChunkConfig | None = None) ->DocumentMeta:
+def summarize_document(extracted_text:str, chunk_config:ChunkConfig | None = None,clean_text: bool = True,) ->DocumentMeta:
     '''
     단일 함수 인터페이스.
 
@@ -339,7 +355,7 @@ def summarize_document(extracted_text:str, chunk_config:ChunkConfig | None = Non
         print(meta.revised_at)  # "2024-01-01"
         print(meta.summary)     # "이 법은 ..."
     '''
-    return DocumentSummarize(chunk_config).summarize(extracted_text)
+    return DocumentSummarize(chunk_config).summarize(extracted_text, clean_text=clean_text)
 
 
         

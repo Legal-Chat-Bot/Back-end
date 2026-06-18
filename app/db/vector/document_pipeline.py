@@ -50,7 +50,6 @@ def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
     # ── [분기 1] PDF, PPTX, DOCX, XLSX, PPT → PyMuPDF + OCR ──
     if doc_type in [DocType.PDF, DocType.PPTX, DocType.DOCX, DocType.XLSX, DocType.PPT]:
         try:
-            fitz_doc = pymupdf.open(stream=BytesIO(file_bytes), filetype=doc_type.value)
             # ✅ 수정 pipeline에서 bytes를 그대로 넘기기
             return process_pdf(file_bytes, filetype=doc_type.value)
         except Exception as e:

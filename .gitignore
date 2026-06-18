@@ -33,4 +33,4 @@ wheels/
 *Thumbs.db
 
 #dataset
-/dataset/*.json
+/dataset/*.jsonl
