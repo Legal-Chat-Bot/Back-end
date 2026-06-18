@@ -80,6 +80,7 @@ def create_chunks_bulk(
     except Exception:
         #문제 발생하면 db롤백시킴.
         db.rollback()
+        #에러가 발생한 최초의 지점 정보를 고스란히 보존해서 던집니다. e를 사용해서 error메세지 보내면 추적하기 어려워서 raise만 작성했습니다.
         raise
     
     return rows
