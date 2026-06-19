@@ -54,8 +54,8 @@ class Chunk(Base):
 
 
     user = relationship("User", back_populates="chunks")
-    chat = relationship("Chat", back_populates="chunks",cascade="all, delete-orphan")
-    document = relationship("Document", back_populates="chunks", cascade="all, delete-orphan")
+    chat_sessions = relationship("Chat", back_populates="chunks")
+    document = relationship("Document", back_populates="chunks")
 
 
 # 디버깅용으로 연동후 확인할떄 바로 값이 보이도록하는것. print(chunk)했을떄
