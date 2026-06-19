@@ -13,10 +13,10 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "법률 챗봇"
 
     # 모델설정
-    OLLAMA_BASE_URL: str = "http://localhost:11434" #모델 url
+    OLLAMA_BASE_URL: str = Field(default="http://localhost:11434") #모델 url
     # 역할에 따라 모델 분리
     # str은 헌팅식 python 문법입니다. typescript처럼 타입을 미리 정의를 해주는방식
-    CLASSIFIER_MODEL: str = "qwen2.5:3b"    # 문서 분류용
+    SUMMARIZE_MODEL: str = Field(default="exaone3.5:2.4b")
     EMBEDDING_MODEL: str = Field(default="BAAI/bge-m3")    # 임베딩용
     RAG_MODEL: str = "law-qwen-7b"          # RAG 응답용
     #임베딩모델 설정
@@ -45,6 +45,13 @@ class Settings(BaseSettings):
 
     # Upload Directory 세팅
     UPLOAD_DIR: str = DOWNLOAD_DIR+"/uploads"
+
+    # Oauth 세팅
+    KAKAO_ADMIN_KEY: str = Field(default=...)
+    KAKAO_REST_API_KEY: str = Field(default=...)
+    KAKAO_REDIRECT_URI: str = Field(default=...)
+    KAKAO_CLIENT_SECRET: str = Field(default=...)
+
 
     class Config:
         env_file = BASE_DIR+"/.env"

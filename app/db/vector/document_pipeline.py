@@ -1,5 +1,4 @@
 # ============================================================
-# document_pipeline.py
 # 문서 → 확장자 판별 → 텍스트 추출 (read_ocr 연동) 파이프라인
 #
 # 지원 포맷: pdf, pptx, docx, hwp, hwpx, txt,xlsx
@@ -51,8 +50,8 @@ def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
     # ── [분기 1] PDF, PPTX, DOCX, XLSX, PPT → PyMuPDF + OCR ──
     if doc_type in [DocType.PDF, DocType.PPTX, DocType.DOCX, DocType.XLSX, DocType.PPT]:
         try:
-            fitz_doc = pymupdf.open(stream=BytesIO(file_bytes), filetype=doc_type.value)
-            return process_pdf(fitz_doc)
+            # ✅ 수정 pipeline에서 bytes를 그대로 넘기기
+            return process_pdf(file_bytes, filetype=doc_type.value)
         except Exception as e:
             raise RuntimeError(f"[{doc_type.value.upper()}] OCR 텍스트 추출 오류: {e}")
 

@@ -2,6 +2,9 @@ from app.core.config import settings
 from pinecone import Pinecone, ServerlessSpec
 from pinecone.data import Index
 
+from uuid import UUID
+
+
 # _pc ← 언더스코어 = 모듈 내부에서만 쓰는 변수라는 관례 =>해당모듈에서만사용.
 # _index와 마찬가지로 pinecone같은변수 구분용.
 _pc: Pinecone = None #초기값 None
@@ -43,7 +46,7 @@ def get_index() :
 def public_namespace() -> str:
     return "public"
 
-def user_namespace(user_id: str) -> str:
+def user_namespace(user_id: UUID) -> str:
     return f"user_{user_id}"
 
 # Upsert
@@ -76,14 +79,24 @@ def query(dense_vector: list[float], sparse_vector:dict, namespace:str, top_k:in
         return [match.to_dict() for match in response.matches]
     return response.get("matches", [])
 
-# 삭제 로직 document_id값 기준
+# 삭제 로직 document_id값 기준 지울지 고민
 def delete_by_document_id(document_id:str, namespace:str) -> None:
     get_index().delete(
         # eq pinecone에서 equal의 의미 같다는 의미로사용함..
         filter={"document_id": {"$eq": document_id}},
         namespace=namespace,
     )
+
 # ✅ 네임스페이스 전체 초기화 (재인덱싱 전 중복 제거용)
 def delete_all(namespace: str) -> None:
     get_index().delete(delete_all=True, namespace=namespace)
     print(f"[Pinecone] 전체 삭제 완료: namespace={namespace}")
+
+def delete_by_ids(vector_ids: list[str], namespace: str) -> None:
+    """
+    RDB에서 수집한 vector_id 목록으로 Pinecone 벡터를 직접 삭제.
+    vector_ids가 비어 있으면 아무것도 하지 않는다 (Pinecone API 에러 방지).
+    """
+    if not vector_ids:
+        return
+    get_index().delete(ids=vector_ids, namespace=namespace)

@@ -11,6 +11,7 @@ from app.routes.user.user import router as user_router
 from app.routes.websocket.chat import router as websocket_router
 from app.routes.chat.session import router as chat_router
 from app.routes.chat.document import router as document_router
+from app.routes.oauth.kakao import router as kakao_router
 import os
 
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -19,6 +20,7 @@ app.include_router(signup_router)
 app.include_router(user_router)
 app.include_router(chat_router)
 app.include_router(document_router)
+app.include_router(kakao_router)
 app.include_router(websocket_router)
 
 init_db()  # 애플리케이션 시작 시 DB 초기화 (테이블 생성 등)

@@ -41,6 +41,8 @@ class Chat(Base):
     user = relationship("User", back_populates="chat_sessions")
     messages = relationship("Message", back_populates="chat_sessions", cascade="all, delete-orphan")
     document = relationship("Document", back_populates="chat_sessions", cascade="all, delete-orphan")
+    chunks = relationship("Chunk", back_populates="chat_sessions", cascade="all, delete-orphan")
+
 
 # Messages 테이블
 class Message(Base):
@@ -65,13 +67,13 @@ class Message(Base):
 
     question = Column(Text, nullable=False)
 
-    answer = Column(Text, nullable=False)
+    answer = Column(Text, nullable=True)
 
     is_legal = Column(Boolean, nullable=False, default=False)
 
     question_at = Column(DateTime(timezone=True), nullable=False)
 
-    answer_at = Column(DateTime(timezone=True), nullable=False)
+    answer_at = Column(DateTime(timezone=True), nullable=True)
 
     # ORM user객체 chat객체 관계 연결 설정
     user = relationship("User", back_populates="messages")

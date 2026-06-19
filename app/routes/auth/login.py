@@ -4,7 +4,7 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.db.models.user import User as UserModel
+from app.db.models.user import User, SocialType
 from app.db.db import get_db
 from app.schemas.auth.request import Login as LoginRequest
 from app.schemas.auth.response import Token
@@ -17,15 +17,16 @@ from app.core.security import (
     decode_token,
     security
 )
+from app.services.kakao_service import kakao_logout
 
-router = APIRouter(tags=["Auth"])
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 class RefreshRequest(BaseModel):
     refresh_token: str
 
 
 @router.post(
-    "/auth/login",
+    "/login",
     response_model=Token,
     response_model_by_alias=True,
     summary="로그인",
@@ -34,7 +35,7 @@ def login(
     login_data: LoginRequest,
     db: Session = Depends(get_db)
 ):
-    user = db.query(UserModel).filter(UserModel.email == login_data.email).first()
+    user = db.query(User).filter(User.email == login_data.email).first()
 
     if not user:
         raise HTTPException(status_code=401, detail="이메일이 올바르지 않습니다.")
@@ -66,10 +67,10 @@ def login(
     )
 
 @router.post(
-    "/auth/logout",
+    "/logout",
     summary="로그아웃",
 )
-def logout(
+async def logout(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ):
@@ -86,6 +87,15 @@ def logout(
 
     if not jti or not exp or not user_id:
         raise HTTPException(status_code=401, detail="토큰 정보가 올바르지 않습니다.")
+    
+    # DB에서 유저 조회
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
+    
+    # 카카오 유저면 unlink 추가
+    if user.social == SocialType.KAKAO:
+        await kakao_logout(user.social_id)
 
     # 블랙리스트 등록 + 세션 제거
     token_store.blacklist_token(jti, exp)
@@ -95,7 +105,7 @@ def logout(
 
 
 @router.post(
-    "/auth/refresh",
+    "/refresh",
     response_model=Token,
     response_model_by_alias=True,
     summary="Access Token 재발급",

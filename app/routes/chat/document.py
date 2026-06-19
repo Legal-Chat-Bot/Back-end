@@ -14,7 +14,7 @@ from app.db.models.chat import Chat
 from app.db.models.document import Document, FileType, Status
 from app.schemas.chat.response import DocumentResponse
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["Chat"])
 
 # Enum Type 코드
 EXTENSION_TO_FILE_TYPE = {
@@ -50,6 +50,22 @@ def get_original_filename(filename: str) -> str:
 def make_storage_filename(original_filename: str) -> str:
     ext = os.path.splitext(original_filename)[1].lower()
     return f"{uuid.uuid4().hex}{ext}"
+
+@router.get(
+        "/sessions/{session_id}/documents",
+        response_model=list[DocumentResponse]
+)
+def get_documents(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    documents = db.query(Document).filter(
+        Document.session_id == session_id,
+        Document.user_id == current_user.user_id,
+    ).order_by(Document.created_at.asc()).all()
+
+    return documents
 
 @router.post(
     "/sessions/{session_id}/upload",
