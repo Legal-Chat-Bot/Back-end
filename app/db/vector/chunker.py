@@ -255,7 +255,7 @@ class Chunker:
             text = self._clean(text)
         
         #2. 법률 구조 기반 1차 분리
-        if cfg.use_law_structure:
+        if do_detect_article:
             sections =_split_by_law_structure(text)
         else:
             # 텍스트의 공백 지우기.

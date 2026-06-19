@@ -22,6 +22,12 @@ class Status(str, enum.Enum):
     READY = "READY"
     FAILED = "FAILED"
 
+class Category(str, enum.Enum):
+    LAW_RULE= "법령·규정"
+    CONTRACT = "계약서·협약서"
+    JUDGMENT = "판결문·결정문"
+    ADMIN_DOC = "행정문서·공문"
+    OTHER = "기타"
 class Document(Base):
     __tablename__ = "document"
 
@@ -47,6 +53,7 @@ class Document(Base):
     file_size_bytes = Column(BigInteger, nullable=True)
     storage_url = Column(Text, nullable=False)
     status = Column(Enum(Status), nullable=False, default=Status.READY)
+    category = Column(Enum(Category), nullable=False, default=Category.OTHER)
     summary = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     

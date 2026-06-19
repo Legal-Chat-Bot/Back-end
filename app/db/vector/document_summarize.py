@@ -12,7 +12,6 @@
 #
 # 설계 원칙:
 #   - 청크 전체를 API에 보내지 않고 대표 청크만 샘플링 (토큰 비용 절감)
-#   - 개정일은 정규식 1차 추출 → Claude 2차 보완
 #   - 카테고리는 사전 정의된 목록 중 선택 (확장 가능)
 #   - 실패 시 빈 값 반환 (파이프라인 전체가 죽지 않도록)
 # clean_text 옵션
@@ -29,7 +28,7 @@ from __future__ import annotations
 
 import re
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 from typing import Optional
 
 from langchain_community.llms import Ollama
@@ -49,7 +48,7 @@ MAX_SAMPLE_CHUNKS = 10
 # 요약에 넣기전 분류용 최대 텍스트 길이 (토큰 폭발 방지)
 MAX_ANALYSIS_CHARS = 8000
 
-# 지원 카테고리 목록 (필요 시 확장) 안쓸수도 있음. 미정
+# 지원 카테고리 목록
 SUPPORTED_CATEGORIES = [
     "법령·규정",
     "계약서·협약서",
@@ -62,6 +61,10 @@ SUPPORTED_CATEGORIES = [
     "기술문서",
     "기타",
 ]
+
+#법률 문서만가능하게 하기위해서
+LAW_CATEGORIES = {"법령·규정", "판결문·결정문", "계약서·협약서", "행정문서·공문"}
+
 
 # 개정일 정규식 패턴 (우선순위 순)
 _RE_DATES: list[re.Pattern] = [
@@ -93,8 +96,8 @@ class DocumentMeta:
     law_date: Optional[str] = None # "YYYY-MM-DD" or None
     summary: str  = ""
     law_name: str = ""
-    chunk_count: int = 0 #청크갯수
     error: Optional[str] = None  #오류 메시지
+    chunks: list[Chunk] = field(default_factory=list)  # 추가
 
 # 날짜 추출 헬퍼
 
@@ -258,27 +261,44 @@ class DocumentSummarize:
         if not extracted_text or not extracted_text.strip():
             return DocumentMeta(error="추출돤 텍스트가 없습니다")
         
-        #1.청킹
+        # 1. 카테고리 먼저 판단 (짧은 문서면 전체, 길면 앞부분만)
+        try:
+            preview_text = extracted_text[:2000] if len(extracted_text) > 2000 else extracted_text
+            preview_prompt = _build_prompt(preview_text)
+            raw_json = _call_llm(preview_prompt)
+            pre_result = self._parse_response(raw_json)
+            category = pre_result.category
+        except Exception as e:
+            category = "기타"
+        
+        # 2. 법령 카테고리 아니면 청킹 스킵 → 요약만 반환
+        if category not in LAW_CATEGORIES:
+            return DocumentMeta(
+                    category=category,
+                    error="해당 문서 요약을 실패했습니다."
+            )
+        #3.청킹 법률문서는 청킹
         try:
             chunks = self._chunker.chunk(extracted_text, clean_text=clean_text)
         except Exception as e:
             return DocumentMeta(error=f"청킹 실패: {e}")
-        
         if not chunks:
             return DocumentMeta(error="청킹 결과가 없습니다.")
+        
+        # 4.정규식 날짜 추출
+        date_hint = _extract_revised_date_regex(extracted_text)
+        
         
         # 법령명 (chunker로 추출한 값, 첫 청크 기준)
         # clean_text=False면 chunker가 law_name을 채우지 않으므로 자연히 빈 문자열
         law_name = chunks[0].law_name if chunks else ""
 
-        # 2.정규식 날짜 추출
-        date_hint = _extract_revised_date_regex(extracted_text)
 
-        # 3. 샘플 청크 선택
+        # 5. 샘플 청크 선택
         sample_chunks = _sample_chunks(chunks)
         summarize_text = _build_sample_text(sample_chunks)
 
-        # 4. 로컬 llm 호출 - category/ summarty만 담당.
+        # 6. 로컬 llm 호출 - category/ summarty만 담당.
         try:
             prompt = _build_prompt(summarize_text)
             raw_json = _call_llm(prompt)
@@ -288,13 +308,12 @@ class DocumentSummarize:
             return DocumentMeta(
                 law_date= date_hint,
                 law_name = law_name,
-                chunk_count= len(chunks),
                 error = f"로컬 llm 호출 실패: {e}",
             )
         
         result.law_date = date_hint
         result.law_name = law_name
-        result.chunk_count = len(chunks)
+        result.chunks = chunks  # 추가
         return result
     
     #내부 헬퍼
