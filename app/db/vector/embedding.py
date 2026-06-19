@@ -33,7 +33,7 @@ def get_model() -> BGEM3FlagModel:
     if _model is None:
         _model = BGEM3FlagModel(
             settings.EMBEDDING_MODEL,
-            use_fp16=True,
+            use_fp16=False,
             device=EMBEDDING_DEVICE,
         )
     print("모델 가져오기 성공")

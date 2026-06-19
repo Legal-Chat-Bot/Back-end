@@ -12,9 +12,7 @@ def search_pinecone(
     user_id: str,
     top_k: int = 5,
 ) -> list[dict]:
-    print("시작")
     emb = embed_full(question)
-    print("나옴")
     def to_result(match, source_type: str) -> dict:
         return {
             "score": match["score"],
