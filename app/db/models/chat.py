@@ -65,13 +65,13 @@ class Message(Base):
 
     question = Column(Text, nullable=False)
 
-    answer = Column(Text, nullable=False)
+    answer = Column(Text, nullable=True)
 
     is_legal = Column(Boolean, nullable=False, default=False)
 
     question_at = Column(DateTime(timezone=True), nullable=False)
 
-    answer_at = Column(DateTime(timezone=True), nullable=False)
+    answer_at = Column(DateTime(timezone=True), nullable=True)
 
     # ORM user객체 chat객체 관계 연결 설정
     user = relationship("User", back_populates="messages")

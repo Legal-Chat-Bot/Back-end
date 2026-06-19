@@ -2,7 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timezone
-import time
+import traceback
 
 from app.services.chat_service import process_chat
 from app.db.db import get_db
@@ -106,7 +106,14 @@ async def websocket_chat(
                 user_id=user.user_id,
                 question=message_text,
                 question_at=datetime.now(timezone.utc),
+                answer = "",
+                answer_at=datetime.now(timezone.utc)
             )
+
+            db.add(msg)
+            db.commit()
+            db.refresh(msg)            
+
             # 웹소켓 파이프라인 연결
             response = await process_chat(
                 db=db,
@@ -159,8 +166,10 @@ async def websocket_chat(
     except WebSocketDisconnect:
         pass
 
-    except Exception:
+    except Exception as e:
         db.rollback()
+        print("[WebSocket ERROR]", repr(e), flush=True)
+        traceback.print_exc()
 
         try:
             await websocket.send_json({

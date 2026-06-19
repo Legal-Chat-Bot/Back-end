@@ -13,7 +13,6 @@ def search_pinecone(
     top_k: int = 5,
 ) -> list[dict]:
     emb = embed_full(question)
-
     def to_result(match, source_type: str) -> dict:
         return {
             "score": match["score"],
