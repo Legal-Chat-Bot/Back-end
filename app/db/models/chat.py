@@ -41,7 +41,6 @@ class Chat(Base):
     user = relationship("User", back_populates="chat_sessions")
     messages = relationship("Message", back_populates="chat_sessions", cascade="all, delete-orphan")
     document = relationship("Document", back_populates="chat_sessions", cascade="all, delete-orphan")
-    chunks = relationship("Chunk", back_populates="chat_sessions", cascade="all, delete-orphan")
 
 
 # Messages 테이블

@@ -25,12 +25,6 @@ class Chunk(Base):
     document_id = Column(UUID(as_uuid=True),
                          ForeignKey("document.document_id",ondelete="CASCADE"),
                          nullable=False)
-    session_id = Column(UUID(as_uuid=True),ForeignKey("chat_sessions.session_id",ondelete="CASCADE"), nullable=False)
-    user_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.user_id", ondelete="CASCADE"),
-        nullable=False
-    )
 
     chunk_text = Column(Text, nullable=False)
     
@@ -52,9 +46,6 @@ class Chunk(Base):
         server_default=func.now()
     )
 
-
-    user = relationship("User", back_populates="chunks")
-    chat_sessions = relationship("Chat", back_populates="chunks")
     document = relationship("Document", back_populates="chunks")
 
 
