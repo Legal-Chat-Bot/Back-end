@@ -29,14 +29,14 @@ SPARSE_THRESHOLD = settings.SPARSE_THRESHOLD
 def get_model() -> BGEM3FlagModel:
     global _model
 
-    print("모델 가져오기")
+    # print("모델 가져오기")
     if _model is None:
         _model = BGEM3FlagModel(
             settings.EMBEDDING_MODEL,
             use_fp16=True,
             device=EMBEDDING_DEVICE,
         )
-    print("모델 가져오기 성공")
+    # print("모델 가져오기 성공")
     return _model
 
 
