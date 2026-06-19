@@ -166,7 +166,7 @@ async def websocket_chat(
     except WebSocketDisconnect:
         pass
 
-    except Exception:
+    except Exception as e:
         db.rollback()
         print("[WebSocket ERROR]", repr(e), flush=True)
         traceback.print_exc()
