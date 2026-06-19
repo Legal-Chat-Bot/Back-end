@@ -53,3 +53,4 @@ class Document(Base):
     # ORM user객체 chat객체 관계 연결 설정
     user = relationship("User", back_populates="document")
     chat_sessions = relationship("Chat", back_populates="document")
+    chunk = relationship("Chunk", back_populates="document", cascade="all, delete-orphan")
