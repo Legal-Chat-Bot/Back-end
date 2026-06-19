@@ -52,4 +52,3 @@ class User(Base):
     chat_sessions = relationship("Chat", back_populates="user", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
     document = relationship("Document", back_populates="user", cascade="all, delete-orphan")
-    chunks = relationship("Chunk", back_populates="user", cascade="all, delete-orphan")
