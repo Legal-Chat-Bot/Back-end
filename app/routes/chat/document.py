@@ -13,6 +13,8 @@ from app.db.models.user import User
 from app.db.models.chat import Chat
 from app.db.models.document import Document, FileType, Status
 from app.schemas.chat.response import DocumentResponse
+from app.db.vector.document_pipeline import extract_text_from_file
+from app.db.vector.document_summarize import summarize_document
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -117,6 +119,23 @@ async def upload_file(
 
     file_size = os.path.getsize(file_path)
 
+    # 텍스트 추출 → 요약
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    try:
+        extracted_text = extract_text_from_file(file_bytes, original_filename)
+        meta = summarize_document(extracted_text)
+        summary = meta.summary
+        print("=== 요약 결과 ===")
+        print("category:", meta.category)
+        print("law_date:", meta.law_date)
+        print("law_name:", meta.law_name)
+        print("summary:", meta.summary[:100])  # 너무 길면 100자만
+    except Exception as e:
+        print("요약 실패:", e)            # 추가
+        summary = ""  # 요약 실패해도 업로드는 정상 처리
+
     # 추후 요약LLM도 생성 후 summary에 적용 시키기
     # Websocket 연동도 같이 진행
     document = Document(
@@ -127,7 +146,7 @@ async def upload_file(
         file_size_bytes=file_size,
         storage_url=file_path,
         status=Status.UPLOADED,
-        summary="",
+        summary=summary,
     )
 
     db.add(document)

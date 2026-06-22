@@ -58,7 +58,6 @@ def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
     # ── [분기 2] HWP / HWPX → rhwp 직접 파싱 ──
     elif doc_type in [DocType.HWP, DocType.HWPX]:
         try:
-            # rhwp는 파일 경로만 받으므로 임시 파일로 저장 후 파싱
             import tempfile, os
             suffix = f".{doc_type.value}"
             with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -66,11 +65,19 @@ def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
                 tmp_path = tmp.name
             try:
                 doc = rhwp.parse(tmp_path)
-                return doc.extract_text()
+                text = doc.extract_text()
+                if not text or not text.strip():
+                    raise RuntimeError(
+                        "HWP 3.0 이하 포맷은 지원하지 않습니다. "
+                        "HWPX 형식으로 변환 후 다시 업로드해주세요."
+                    )
+                return text
             finally:
                 os.unlink(tmp_path)
+        except RuntimeError:
+            raise
         except Exception as e:
-            raise RuntimeError(f"[{doc_type.value.upper()}] rhwp 텍스트 추출 오류: {e}")
+            raise RuntimeError(f"[{doc_type.value.upper()}] 텍스트 추출 오류: {e}")
 
     # ── [분기 3] TXT ──
     elif doc_type == DocType.TXT:
