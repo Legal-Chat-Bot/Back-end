@@ -31,7 +31,7 @@ import json
 from dataclasses import dataclass,field
 from typing import Optional
 
-from langchain_community.llms import Ollama
+from langchain_ollama import OllamaLLM
 from app.core.config import settings
 from app.db.vector.chunker import Chunker, ChunkConfig, Chunk
 from app.db.vector.summarize_prompt import ANALYSIS_PROMPT_TEMPLATE
@@ -39,7 +39,7 @@ from app.db.vector.summarize_prompt import ANALYSIS_PROMPT_TEMPLATE
 # 상수값.
 
 # 로컬 llm 한번만 로드
-_llm = Ollama(base_url=settings.OLLAMA_BASE_URL, model=settings.SUMMARIZE_MODEL, temperature=0.1)
+_llm = OllamaLLM(base_url=settings.OLLAMA_BASE_URL, model=settings.SUMMARIZE_MODEL, temperature=0.1)
 
 
 # 요약에 사용할 최대 청크
