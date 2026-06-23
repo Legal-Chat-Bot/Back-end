@@ -14,7 +14,6 @@ from enum import Enum
 from pathlib import Path
 from io import BytesIO
 import pymupdf
-import rhwp  # rhwp-python
 
 from app.db.vector.read_ocr import process_pdf
 
@@ -58,11 +57,14 @@ def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
     # ── [분기 2] HWP / HWPX → rhwp 직접 파싱 ──
     elif doc_type in [DocType.HWP, DocType.HWPX]:
         try:
+            import rhwp
             import tempfile, os
+
             suffix = f".{doc_type.value}"
             with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
                 tmp.write(file_bytes)
                 tmp_path = tmp.name
+
             try:
                 doc = rhwp.parse(tmp_path)
                 text = doc.extract_text()
@@ -74,6 +76,7 @@ def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
                 return text
             finally:
                 os.unlink(tmp_path)
+
         except RuntimeError:
             raise
         except Exception as e:
