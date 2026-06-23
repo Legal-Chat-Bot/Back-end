@@ -132,6 +132,21 @@ async def upload_file(
     except Exception as e:
         print("텍스트 추출 실패:", e)
 
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        message = str(e)
+        if "UNSUPPORTED_HWPML" in message or "HWPML 2.1" in message or "HWP 3.0" in message:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="HWP 3.0 이하 포맷은 지원하지 않습니다.\nHWPX 형식으로 변환 후 다시 업로드해주세요.",
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="문서 텍스트 추출에 실패했습니다.",
+        )
+
     meta = None
     summary = ""
     if extracted_text:
