@@ -30,8 +30,9 @@ from app.crud.chunk_crud import (
     get_chunks_by_document,
     delete_chunks_from_rdb,
     create_chunks_bulk,
-    update_chunk_text,
 )
+from app.crud.chunk_dataset_crud import update_chunk_dataset_text
+
 
 
 
@@ -215,7 +216,7 @@ async def _sync_public_if_newer(
         })
 
         # RDB: chunk_text / law_date 교체 (pub_id == vector_id로 직접 매핑)
-        update_chunk_text(
+        update_chunk_dataset_text(
             db=db,
             vector_id=UUID(pub_id),
             new_text=chunk.text,
@@ -265,14 +266,14 @@ async def delete_document_index(
 async def index_document(
     text: str,
     document_id: UUID,
-    user_id: UUID,            # 공용 문서일 경우 관리자(Admin)의 user_id 전달
-    session_id: UUID,
+    user_id: UUID,           
     db: Session,
     category: str,
     law_name: str = "",
     law_date: str = "",
     clean_text: bool = True,
     is_public: bool = False,  # 공용 문서(관리자 업로드) 여부 플래그
+    pre_chunked: list[Chunk] | None = None,
 ) -> IndexingResult:
     """
     통합 문서 인덱싱 파이프라인 (공용/유저 문서 공용)
@@ -282,15 +283,17 @@ async def index_document(
     if filtered is None:
         raise ValueError(f"[{document_id}] 텍스트가 너무 짧거나 비어있음")
     
+    namespace = pinecone.public_namespace() if is_public else pinecone.user_namespace(user_id)
     # 2. 문서 유형(공용/유저)에 따른 네임스페이스 및 청킹 분기 (원래 방식으로 안전하게 호출)
-    if is_public:
-        namespace = pinecone.public_namespace()
+    if pre_chunked:
+        chunks = pre_chunked
+    elif is_public:
         # 공용 문서는 항상 법률 구조 분리 활성화 + 정제 스킵
         chunks = _chunker.chunk(filtered, already_cleaned=True, clean_text=False)
     else:
-        namespace = pinecone.user_namespace(user_id)
         # 유저 문서는 파라미터로 받은 clean_text 옵션 그대로 적용
         chunks = _chunker.chunk(filtered, clean_text=clean_text)
+
 
     # 3. 청킹 결과 검증
     if not chunks:
@@ -312,8 +315,6 @@ async def index_document(
         chunk_texts=[c.text for c in chunks],
         articles=[c.article for c in chunks],
         document_id=document_id,
-        session_id=session_id,
-        user_id=user_id,  
         law_date=law_date,
     )
 
