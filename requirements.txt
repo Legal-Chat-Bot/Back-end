@@ -63,7 +63,7 @@ sentence-transformers==3.0.1
 tensorflow==2.21.0
 sentencepiece
 tf-keras
-langchain-community
+langchain_ollama
 
 # =====================================================
 # RAG / Embedding / Vector DB
