@@ -53,6 +53,8 @@ class DocumentResponse(BaseModel):
     status: Status
     summary: str
     created_at: datetime
+    #파일명으로 채팅방 이름 변경하기위해 추가했습니다. rdb영향안줍니다.
+    session_title: str | None = None  
     class Config:
         from_attributes = True
 

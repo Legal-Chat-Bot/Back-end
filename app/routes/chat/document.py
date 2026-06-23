@@ -169,6 +169,10 @@ async def upload_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="법률 관련 문서만 업로드 가능합니다.",
     )
+    # 기본값일경우 채팅방이름 변경 파일이 법률파일일때만
+    if chat_session.title == "새 대화":
+        chat_session.title = original_filename
+
     # 추후 요약LLM도 생성 후 summary에 적용 시키기
     # Websocket 연동도 같이 진행
     document = Document(
@@ -205,5 +209,5 @@ async def upload_file(
         print("인덱싱 실패:", e)
         document.status = Status.FAILED
         db.commit()
-
+    document.session_title = chat_session.title
     return document
