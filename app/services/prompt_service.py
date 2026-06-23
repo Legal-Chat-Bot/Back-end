@@ -19,15 +19,14 @@ def format_search_results(search_results: list[dict]) -> str:
         else:  # document
             content = metadata.get("text", "")
 
-        # 관련 조문(article)이 메타데이터에 있으면 본문 앞에 명시
-        #   - 형식: "○○법 제○○조" 문자열 하나
-        #   - 모델이 조문 번호를 외워서 지어내지 않고, 여기 있는 걸 보고 인용하게 함
-        #   - 환각(가짜 조문) 감소 + 검증 정확도 향상
-        article = metadata.get("article", "")
-        if article:
-            lines.append(f"{i}. [관련 조문: {article}] {content}")
+        # law_name/category만 표시하고, article metadata는 사용하지 않는다.
+        # 조문 번호는 참고자료 본문(text)에 실제 등장하는 경우에만 모델이 참고하게 한다.
+        law_name = metadata.get("law_name") or metadata.get("category", "")
+
+        if law_name:
+            lines.append(f"{i}. [법령명: {law_name}] {content}")
         else:
-            lines.append(f"{i}. [조항 번호 인용 금지] {content}")   # ← 추가
+            lines.append(f"{i}. {content}")
     return "\n".join(lines)
 
 
