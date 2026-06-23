@@ -13,8 +13,10 @@ from app.db.models.user import User
 from app.db.models.chat import Chat
 from app.db.models.document import Document, FileType, Status
 from app.schemas.chat.response import DocumentResponse
+#vector
 from app.db.vector.document_pipeline import extract_text_from_file
-from app.db.vector.document_summarize import summarize_document
+from app.db.vector.document_summarize import summarize_document,LAW_CATEGORIES
+from app.db.vector.indexer import index_document
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -122,20 +124,36 @@ async def upload_file(
     # 텍스트 추출 → 요약
     with open(file_path, "rb") as f:
         file_bytes = f.read()
-
+    
+    # 텍스트 추출
+    extracted_text = ""
     try:
         extracted_text = extract_text_from_file(file_bytes, original_filename)
-        meta = summarize_document(extracted_text)
-        summary = meta.summary
-        print("=== 요약 결과 ===")
-        print("category:", meta.category)
-        print("law_date:", meta.law_date)
-        print("law_name:", meta.law_name)
-        print("summary:", meta.summary[:100])  # 너무 길면 100자만
     except Exception as e:
-        print("요약 실패:", e)            # 추가
-        summary = ""  # 요약 실패해도 업로드는 정상 처리
+        print("텍스트 추출 실패:", e)
 
+    meta = None
+    summary = ""
+    if extracted_text:
+        try:
+            meta = summarize_document(extracted_text)
+            summary = meta.summary
+            print("=== 요약 결과 ===")
+            print("category:", meta.category)
+            print("law_date:", meta.law_date)
+            print("law_name:", meta.law_name)
+            print("summary:", meta.summary[:100])  # 너무 길면 100자만
+        except Exception as e:
+            print("요약 실패:", e)     
+            summary = ""      
+
+    # 법률 문서 아니면 파일 삭제 후 에러 반환
+    if meta is None or meta.category not in LAW_CATEGORIES:
+        os.remove(file_path)  # 저장된 파일도 정리
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="법률 관련 문서만 업로드 가능합니다.",
+    )
     # 추후 요약LLM도 생성 후 summary에 적용 시키기
     # Websocket 연동도 같이 진행
     document = Document(
@@ -145,12 +163,32 @@ async def upload_file(
         file_ext=file_type,
         file_size_bytes=file_size,
         storage_url=file_path,
-        status=Status.UPLOADED,
+        status=Status.CHUNKED,
         summary=summary,
     )
 
     db.add(document)
     db.commit()
     db.refresh(document)
+
+    try:
+        # 청킹테이블에 적재.
+        await index_document(
+        text=extracted_text,
+        document_id=document.document_id,
+        user_id=current_user.user_id,
+        db=db,
+        category=meta.category,
+        law_name=meta.law_name or "",
+        law_date=meta.law_date or "",
+        pre_chunked=meta.chunks,   # ← 청킹 재사용 (두 번 청킹 방지)
+        is_public=False,
+       )
+        document.status = Status.EMBEDDED
+        db.commit()
+    except Exception as e:
+        print("인덱싱 실패:", e)
+        document.status = Status.FAILED
+        db.commit()
 
     return document
