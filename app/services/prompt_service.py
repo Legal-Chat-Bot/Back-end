@@ -19,21 +19,18 @@ def format_search_results(search_results: list[dict]) -> str:
         else:  # document
             content = metadata.get("text", "")
 
-
         # article metadata를 조문 출처로 우선 사용한다.
         # 본문(content)은 답변 내용의 근거로만 사용하고,
         # 조문 번호 인용은 [조문] 필드에 있는 값만 쓰도록 프롬프트에서 제한한다.
         article = metadata.get("article", "")
         law_name = metadata.get("law_name") or metadata.get("category", "")
         content = content.strip() or "본문 내용 없음"
-
         if article:
             lines.append(f"{i}. [조문: {article}] [본문]\n{content}")
         elif law_name:
             lines.append(f"{i}. [법령명: {law_name}] [조문: 확인 불가] [본문]\n{content}")
         else:
             lines.append(f"{i}. [조문: 확인 불가] [본문]\n{content}")
-
     return "\n".join(lines)
 
 
