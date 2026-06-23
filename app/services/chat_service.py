@@ -112,9 +112,20 @@ async def process_chat(
     # print(f"5:{is_legal}")
 
     # 5. 프롬프트 조립
-    messages = assemble_messages(
+    """messages = assemble_messages(
         question=question,
         search_results=search_results,
+        history=history,
+    )"""
+
+    # 5. 프롬프트 조립
+    # 검색은 top_k개 가져오되, 모델에게는 상위 3개만 전달한다.
+    # 참고자료가 너무 많으면 모델이 여러 조문을 섞어서 답변할 수 있기 때문.
+    llm_search_results = search_results[:3]
+
+    messages = assemble_messages(
+        question=question,
+        search_results=llm_search_results,
         history=history,
     )
 
@@ -125,7 +136,8 @@ async def process_chat(
     # print(f"7:{answer}")
 
     # 7. 환각 검증 + 출처 포맷 → 최종 응답
-    response = build_response(answer, search_results)
-    # print(f"8:{response}")
 
+    """response = build_response(answer, search_results)"""
+
+    response = build_response(answer, llm_search_results)
     return response
