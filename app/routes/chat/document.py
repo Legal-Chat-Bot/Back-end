@@ -120,8 +120,13 @@ async def upload_file(
             title=original_filename,  # 파일명을 제목으로
         )
         db.add(chat_session)
-        db.commit()
-        db.refresh(chat_session)
+    
+    # 이미 있는데 기본 제목이면 파일명으로 변경
+    elif chat_session.title in (None, "", "새대화", "새 대화", "New Chat"):
+        chat_session.title = original_filename
+    
+    db.commit()
+    db.refresh(chat_session)
         
 
     # settings에서 설정한 directory 접근
