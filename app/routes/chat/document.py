@@ -75,7 +75,7 @@ def get_documents(
 @router.get(
         "/documents",
         response_model=list[DocumentResponse],
-        summary="문서 전체 조회"
+        summary="문서 조회"
 )
 def user_documents(
     current_user: User = Depends(get_current_user),
@@ -221,6 +221,7 @@ async def upload_file(
        )
         document.status = Status.EMBEDDED
         db.commit()
+        db.refresh(document)
     except Exception as e:
         print("인덱싱 실패:", e)
         document.status = Status.FAILED
@@ -229,3 +230,44 @@ async def upload_file(
         db.close()
     
     return document
+
+@router.delete(
+    "/{document_id}/document",
+    summary="사용자용 문서 삭제"
+)
+def delete_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="인증이 필요합니다.",
+        )
+    
+    user = db.query(User).filter(User.email == current_user.email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다.",
+        )
+    
+    document = db.query(Document).filter(
+        User.user_id == current_user.user_id,
+        Document.document_id == document_id
+    ).first()
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="문서를 찾을 수 없습니다."
+        )
+    
+    db.delete(document)
+    db.commit()
+
+    return {
+        "message": "문서가 삭제되었습니다."
+    }
