@@ -7,6 +7,7 @@ from app.db.models.user import User, SocialType
 from app.db.db import get_db
 from app.core.security import hash_password, get_current_user
 from app.services.kakao_service import kakao_unlink
+from app.db.vector.client import delete_all
 
 # app에서 작동하는 것이 아닌 router화로 app과 연동 시켜주기 위한 사전 작업
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -67,6 +68,12 @@ async def delete_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="사용자를 찾을 수 없습니다.",
         )
+    # 1. Pinecone 네임스페이스 삭제 (안전하게 문자열 변환 및 예외 처리)
+    try:
+        await delete_all(namespace=str(user.id)) 
+    except Exception as e:
+        # Pinecone 삭제 실패 시 로그만 찍고 탈퇴 프로세스는 유지 (기획에 따라 선택)
+        print(f"[Warning] 회원 탈퇴 중 Pinecone 데이터 삭제 실패 (유저 ID: {user.id}): {e}")
     
     # 카카오 유저면 unlink 추가
     if user.social == SocialType.KAKAO:

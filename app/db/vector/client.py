@@ -4,6 +4,8 @@ from pinecone.data import Index
 
 from uuid import UUID
 
+import time
+
 
 # _pc ← 언더스코어 = 모듈 내부에서만 쓰는 변수라는 관례 =>해당모듈에서만사용.
 # _index와 마찬가지로 pinecone같은변수 구분용.
@@ -46,7 +48,7 @@ def get_index() :
 def public_namespace() -> str:
     return "public"
 
-def user_namespace(user_id: UUID) -> str:
+def user_namespace(user_id: str) -> str:
     return f"user_{user_id}"
 
 # Upsert
@@ -87,10 +89,26 @@ def delete_by_document_id(document_id:str, namespace:str) -> None:
         namespace=namespace,
     )
 
-# ✅ 네임스페이스 전체 초기화 (재인덱싱 전 중복 제거용)
-def delete_all(namespace: str) -> None:
-    get_index().delete(delete_all=True, namespace=namespace)
-    print(f"[Pinecone] 전체 삭제 완료: namespace={namespace}")
+#유저 날라가면 유저 pincone날리는 것.
+async def delete_all(namespace: str) -> None:
+    index = get_index()
+    namespace = user_namespace(namespace)
+    # 1. 삭제 명령 전달
+    index.delete(delete_all=True, namespace=namespace)
+    print(f"[Pinecone] 전체 삭제 명령 전송 완료: namespace={namespace}")
+
+    # 2. 실제로 지워질 때까지 최대 10초간 대기 (동기화 보장)
+    for _ in range(10):
+        stats = index.describe_index_stats()
+        # 해당 네임스페이스의 벡터 개수가 0이 되었거나 아예 네임스페이스가 리스트에서 사라졌는지 확인
+        vector_count = stats.get('namespaces', {}).get(namespace, {}).get('vector_count', 0)
+        
+        if vector_count == 0:
+            print(f"[Pinecone] 비우기 완료 확인! (현재 개수: {vector_count})")
+            break
+        
+        print("[Pinecone] 아직 삭제 반영 중... 1초 후 재확인합니다.")
+        time.sleep(1)
 
 def delete_by_ids(vector_ids: list[str], namespace: str) -> None:
     """
