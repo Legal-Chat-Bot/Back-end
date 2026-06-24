@@ -97,19 +97,6 @@ async def delete_all(namespace: str) -> None:
     index.delete(delete_all=True, namespace=namespace)
     print(f"[Pinecone] 전체 삭제 명령 전송 완료: namespace={namespace}")
 
-    # 2. 실제로 지워질 때까지 최대 10초간 대기 (동기화 보장)
-    for _ in range(10):
-        stats = index.describe_index_stats()
-        # 해당 네임스페이스의 벡터 개수가 0이 되었거나 아예 네임스페이스가 리스트에서 사라졌는지 확인
-        vector_count = stats.get('namespaces', {}).get(namespace, {}).get('vector_count', 0)
-        
-        if vector_count == 0:
-            print(f"[Pinecone] 비우기 완료 확인! (현재 개수: {vector_count})")
-            break
-        
-        print("[Pinecone] 아직 삭제 반영 중... 1초 후 재확인합니다.")
-        time.sleep(1)
-
 def delete_by_ids(vector_ids: list[str], namespace: str) -> None:
     """
     RDB에서 수집한 vector_id 목록으로 Pinecone 벡터를 직접 삭제.
