@@ -72,7 +72,6 @@ async def delete_user(
     try:
         await delete_all(namespace=str(user.id)) 
     except Exception as e:
-        # Pinecone 삭제 실패 시 로그만 찍고 탈퇴 프로세스는 유지 (기획에 따라 선택)
         print(f"[Warning] 회원 탈퇴 중 Pinecone 데이터 삭제 실패 (유저 ID: {user.id}): {e}")
     
     # 카카오 유저면 unlink 추가
