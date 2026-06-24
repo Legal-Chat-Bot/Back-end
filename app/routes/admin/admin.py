@@ -68,13 +68,51 @@ async def admin_delete_document(
         if not document:
             raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
         
-        delete = await delete_document_index(document=document, db=db)
+        # 문서가 속한 채팅 세션 ID 미리 저장
+        # 네 모델 필드명이 다르면 여기만 수정
+        session_id = document.session_id
 
-        db.delete(delete)
+        # 벡터 DB / 인덱스 삭제 처리
+        # 이 함수가 document 객체를 반환한다고 가정
+        delete_target = await delete_document_index(
+            document=document,
+            db=db
+        )
+
+        # 문서 삭제
+        db.delete(delete_target)
+
+        # 아직 commit 전이지만, 현재 트랜잭션 안에서 삭제 상태 반영
+        db.flush()
+
+        # 같은 세션에 남은 문서 개수 확인
+        document_count = db.query(Document).filter(
+            Document.session_id == session_id
+        ).count()
+
+        # 같은 세션에 남은 메시지 개수 확인
+        message_count = db.query(Message).filter(
+            Message.session_id == session_id
+        ).count()
+
+        chat_session_deleted = False
+
+        # 8. 문서도 없고 메시지도 없으면 채팅방 삭제
+        if document_count == 0 and message_count == 0:
+            chat_session = db.query(Chat).filter(
+                Chat.session_id == session_id
+            ).first()
+
+            if chat_session:
+                db.delete(chat_session)
+                chat_session_deleted = True
+
+        # 9. 최종 커밋
         db.commit()
 
         return {
-            "message": "문서가 삭제되었습니다."
+            "message": "문서가 삭제되었습니다.",
+            "chat_session_deleted": chat_session_deleted
         }
 
     except Exception as e:  
