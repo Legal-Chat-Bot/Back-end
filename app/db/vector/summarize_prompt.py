@@ -51,5 +51,5 @@ Category Selection Rules:
 {text}
 
 === Output Format ===
-"category":"카테고리 목록 중 하나","summary":"- 핵심 내용 1\n- 핵심 내용 2\n- 핵심 내용 3"
+"category":"카테고리 목록 중 하나","summary":"- 핵심 내용 1- 핵심 내용 2- 핵심 내용 3"
 """
