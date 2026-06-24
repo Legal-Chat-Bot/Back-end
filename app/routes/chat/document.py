@@ -16,7 +16,7 @@ from app.schemas.chat.response import DocumentResponse
 #vector
 from app.db.vector.document_pipeline import extract_text_from_file
 from app.db.vector.document_summarize import summarize_document,LAW_CATEGORIES,LAW_UNSTRUCTURED
-from app.db.vector.indexer import index_document
+from app.db.vector.indexer import index_document, delete_document_index
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -235,7 +235,7 @@ async def upload_file(
     "/{document_id}/document",
     summary="사용자용 문서 삭제"
 )
-def delete_document(
+async def delete_document(
     document_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -264,10 +264,19 @@ def delete_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="문서를 찾을 수 없습니다."
         )
-    
-    db.delete(document)
-    db.commit()
 
-    return {
-        "message": "문서가 삭제되었습니다."
-    }
+    try:
+        
+        delete = await delete_document_index(document=document, db=db)
+        db.delete(document)
+        db.commit()
+
+        return {
+            "message": "문서가 삭제되었습니다."
+        }
+    
+    except Exception as e:  
+        print("문서 삭제 실패 : ", e)
+
+    finally:
+        db.close()
