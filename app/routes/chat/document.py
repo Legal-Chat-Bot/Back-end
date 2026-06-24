@@ -75,7 +75,7 @@ def get_documents(
 @router.get(
         "/documents",
         response_model=list[DocumentResponse],
-        summary="문서 조회"
+        summary="문서 전체 조회"
 )
 def user_documents(
     current_user: User = Depends(get_current_user),
