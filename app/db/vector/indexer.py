@@ -22,7 +22,9 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
+from fastapi import Depends
 
+from app.db.db import get_db
 import app.db.vector.client as pinecone
 from app.db.vector.embedding import embed_texts
 from app.db.vector.chunker import Chunker, Chunk
@@ -32,6 +34,7 @@ from app.crud.chunk_crud import (
     create_chunks_bulk,
 )
 from app.crud.chunk_dataset_crud import update_chunk_dataset_text
+from app.db.models.document import Document
 
 
 
@@ -231,8 +234,7 @@ async def _sync_public_if_newer(
 
 #문서 삭제
 async def delete_document_index(
-        document_id: UUID,
-        namespace:str,
+        document: Document,
         db:Session,
 ) -> int:
     '''
@@ -245,18 +247,17 @@ async def delete_document_index(
         3. RDB에서 Chunk 행삭제.
     '''
     #1. RDB에서 vector_id 목록 수집.
-    chunks = get_chunks_by_document(db, document_id)
+    chunks = get_chunks_by_document(db, document.document_id)
     if not chunks:
         return 0 # 하나도 조회 안되었다는뜻.
 
     vector_ids = [str(chunk.vector_id) for chunk in chunks]
 
+    namespace=pinecone.user_namespace(str(document.user_id))
     # 2. Pinecone 먼저 삭제 (Vector DB -> RDB 순)
-    pinecone.delete_by_ids(vector_ids, namespace)
-    
-    # 3.RDB 삭제
-    deleted = delete_chunks_from_rdb(db, document_id)
-    return deleted
+    pinecone.delete_by_ids(vector_ids, namespace=namespace)
+
+    return document
 
 
 

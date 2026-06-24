@@ -10,13 +10,13 @@ from app.db.db import get_db
 from app.core.config import settings
 from app.core.security import get_current_user
 from app.db.models.user import User
-from app.db.models.chat import Chat
+from app.db.models.chat import Chat, Message
 from app.db.models.document import Document, FileType, Status,Category
 from app.schemas.chat.response import DocumentResponse
 #vector
 from app.db.vector.document_pipeline import extract_text_from_file
 from app.db.vector.document_summarize import summarize_document,LAW_CATEGORIES,LAW_UNSTRUCTURED
-from app.db.vector.indexer import index_document
+from app.db.vector.indexer import index_document, delete_document_index
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -57,7 +57,8 @@ def make_storage_filename(original_filename: str) -> str:
 
 @router.get(
         "/sessions/{session_id}/documents",
-        response_model=list[DocumentResponse]
+        response_model=list[DocumentResponse],
+        summary="채팅방 문서 조회"
 )
 def get_documents(
     session_id: str,
@@ -66,6 +67,21 @@ def get_documents(
 ):
     documents = db.query(Document).filter(
         Document.session_id == session_id,
+        Document.user_id == current_user.user_id,
+    ).order_by(Document.created_at.asc()).all()
+
+    return documents
+
+@router.get(
+        "/documents",
+        response_model=list[DocumentResponse],
+        summary="문서 조회"
+)
+def user_documents(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    documents = db.query(Document).filter(
         Document.user_id == current_user.user_id,
     ).order_by(Document.created_at.asc()).all()
 
@@ -104,7 +120,14 @@ async def upload_file(
             title=original_filename,  # 파일명을 제목으로
         )
         db.add(chat_session)
-        db.flush()  # commit 전에 DB에 반영 (document FK 연결 위해)
+    
+    # 이미 있는데 기본 제목이면 파일명으로 변경
+    elif chat_session.title in (None, "", "새대화", "새 대화", "New Chat"):
+        chat_session.title = original_filename
+    
+    db.commit()
+    db.refresh(chat_session)
+        
 
     # settings에서 설정한 directory 접근
     upload_dir = settings.UPLOAD_DIR
@@ -169,9 +192,6 @@ async def upload_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="법률 관련 문서만 업로드 가능합니다.",
     )
-    # 기본값일경우 채팅방이름 변경 파일이 법률파일일때만
-    if chat_session.title == "새 대화":
-        chat_session.title = original_filename
 
     # 추후 요약LLM도 생성 후 summary에 적용 시키기
     # Websocket 연동도 같이 진행
@@ -206,9 +226,100 @@ async def upload_file(
        )
         document.status = Status.EMBEDDED
         db.commit()
+        db.refresh(document)
     except Exception as e:
         print("인덱싱 실패:", e)
         document.status = Status.FAILED
         db.commit()
-    document.session_title = chat_session.title
+    finally:
+        db.close()
+    
     return document
+
+@router.delete(
+    "/{document_id}/document",
+    summary="사용자용 문서 삭제"
+)
+async def delete_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="인증이 필요합니다.",
+        )
+    
+    user = db.query(User).filter(User.email == current_user.email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다.",
+        )
+    
+    document = db.query(Document).filter(
+        User.user_id == current_user.user_id,
+        Document.document_id == document_id
+    ).first()
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="문서를 찾을 수 없습니다."
+        )
+    
+    try:
+        # 문서가 속한 채팅방 ID를 먼저 저장
+        session_id = document.session_id
+
+        # 벡터 DB / 인덱스 삭제
+        delete_target = await delete_document_index(
+            document=document,
+            db=db
+        )
+
+        # 문서 삭제
+        db.delete(delete_target)
+
+        # commit 전 현재 트랜잭션에 삭제 반영
+        db.flush()
+
+        # 같은 채팅방에 남은 문서 개수 확인
+        document_count = db.query(Document).filter(
+            Document.session_id == session_id
+        ).count()
+
+        # 같은 채팅방에 남은 메시지 개수 확인
+        message_count = db.query(Message).filter(
+            Message.session_id == session_id
+        ).count()
+
+        chat_session_deleted = False
+
+        # 문서도 없고 메시지도 없으면 채팅방 삭제
+        if document_count == 0 and message_count == 0:
+            chat_session = db.query(Chat).filter(
+                Chat.session_id == session_id,
+                Chat.user_id == user.user_id
+            ).first()
+
+            if chat_session:
+                db.delete(chat_session)
+                chat_session_deleted = True
+
+        db.commit()
+
+        return {
+            "message": "문서가 삭제되었습니다.",
+            "chat_session_deleted": chat_session_deleted
+        }
+    
+    except Exception as e:  
+        db.rollback()
+        print("문서 삭제 실패 : ", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="문서 삭제에 실패했습니다."
+        )

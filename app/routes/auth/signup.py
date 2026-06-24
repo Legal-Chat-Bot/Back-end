@@ -70,9 +70,9 @@ async def delete_user(
         )
     # 1. Pinecone 네임스페이스 삭제 (안전하게 문자열 변환 및 예외 처리)
     try:
-        await delete_all(namespace=str(user.id)) 
+        await delete_all(namespace=str(user.user_id)) 
     except Exception as e:
-        print(f"[Warning] 회원 탈퇴 중 Pinecone 데이터 삭제 실패 (유저 ID: {user.id}): {e}")
+        print(f"[Warning] 회원 탈퇴 중 Pinecone 데이터 삭제 실패 (유저 ID: {user.user_id}): {e}")
     
     # 카카오 유저면 unlink 추가
     if user.social == SocialType.KAKAO:
