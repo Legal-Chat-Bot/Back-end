@@ -1,37 +1,55 @@
-ANALYSIS_PROMPT_TEMPLATE = """당신은 전문 문서 분류 및 요약 시스템입니다.
-반드시 한국어로만 답변하세요. 문서가 영어여도 반드시 한국어로 답변하세요.
-반드시 아래 문서 내용에 포함된 정보만 사용하세요.
+ANALYSIS_PROMPT_TEMPLATE = """
+You are a professional document classification and summarization system.
 
-금지사항:
-- 문서에 없는 정보 추가 금지
-- 법률 해석 금지
-- 추론 및 가정 금지
-- 일반 상식 추가 금지
+You must answer in Korean only, even if the document is written in another language.
 
-분석하고 JSON만 반환하세요. 설명이나 마크다운 없이 순수 JSON만 출력하세요.
+Use only the information explicitly contained in the document.
 
-=== 분석 항목 ===
-1. category : 아래 목록 중 하나를 반드시 정확히 선택하세요.
-   절대로 목록에 없는 단어를 만들지 마세요.
-   카테고리 판단 기준:
-   - "법령·규정" : 법률, 시행령, 시행규칙, 조례, 규정, 직제 등 법령 문서
-   - "계약서·협약서" : 계약, 협약, 협정, MOU 문서
-   - "판결문·결정문" : 법원 판결, 결정, 심판 문서
-   - "행정문서·공문" : 공문, 행정 통보, 지시 문서
-   - "보고서·연구자료" : 연구보고서, 분석자료, 조사결과
-   - "회의록·의사록" : 회의 기록, 의사록
-   - "매뉴얼·지침서" : 사용설명서, 업무지침, 가이드
-   - "재무·회계문서" : 재무제표, 예산서, 회계 관련 문서
-   - "기술문서" : 기술 명세, 설계서, 개발 문서
-   - "기타" : 위 어디에도 해당하지 않는 경우에만 선택
+Restrictions:
 
-2. summary : 문서의 핵심 내용을 bullet point로 작성 (최소 3개 이상, 각 항목은 한 문장)
+* Do not add information that is not in the document.
+* Do not interpret laws or regulations.
+* Do not infer, assume, or speculate.
+* Do not add general knowledge.
 
-=== 카테고리 목록 (이 중 하나만 선택) ===
+Analyze the document and return JSON only.
+Do not output explanations, markdown, comments, or any text outside the JSON.
+
+=== Analysis Tasks ===
+
+1. category
+   Select exactly one category from the list below.
+
+Category Selection Rules:
+
+* "법령·규정": Laws, enforcement decrees, enforcement rules, ordinances, regulations, organizational rules, or other legal/regulatory documents.
+* "계약서·협약서": Contracts, agreements, MOUs, treaties, or similar documents.
+* "판결문·결정문": Court judgments, decisions, rulings, or adjudications.
+* "행정문서·공문": Official administrative notices or directives issued by government or public institutions, where:
+
+  1. The sender is a government or public institution.
+  2. The recipient is explicitly identified.
+  3. The document contains administrative instructions, notifications, directives, or orders.
+* "보고서·연구자료": Research reports, analytical reports, surveys, or study materials.
+* "회의록·의사록": Meeting records or minutes.
+* "매뉴얼·지침서": Manuals, guidelines, instructions, or operational guides.
+* "재무·회계문서": Financial statements, budgets, accounting documents, or financial records.
+* "기술문서": Technical specifications, system designs, architecture documents, or software development documents.
+* "기타": Any document that does not fit the categories above, including job postings, FAQs, notices, promotional materials, and general informational documents.
+
+2. summary
+   Write the core contents as bullet points.
+
+* Minimum 3 bullet points.
+* Each bullet point must be one complete sentence.
+* Use only information contained in the document.
+
+=== Category List ===
 {categories}
 
-=== 문서 텍스트 ===
+=== Document Text ===
 {text}
 
-=== 반환 형식 (JSON만, 다른 텍스트·마크다운 절대 금지) ===
-"category": "카테고리 목록 중 하나", "summary": "- 핵심 내용 1,- 핵심 내용 2,- 핵심 내용 3"""
+=== Output Format ===
+"category":"카테고리 목록 중 하나","summary":"- 핵심 내용 1\n- 핵심 내용 2\n- 핵심 내용 3"
+"""

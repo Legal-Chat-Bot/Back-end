@@ -62,9 +62,18 @@ SUPPORTED_CATEGORIES = [
     "기타",
 ]
 
-#법률 문서만가능하게 하기위해서
-LAW_CATEGORIES = {"법령·규정", "판결문·결정문", "계약서·협약서", "행정문서·공문"}
 
+#   카테고리를 두 축으로 분리해 청킹 방식을 결정한다.
+#   LAW_STRUCTURED   (법령·규정 / 판결문·결정문 / 계약서·협약서)
+#     → 조/항 구조가 존재할 가능성이 높으므로 clean_text=True 로 구조 청킹.
+#   LAW_UNSTRUCTURED (행정문서·공문 / 보고서·연구자료)
+#     → 법률 관련이지만 조/항 구조가 없으므로 clean_text=False 로 일반 청킹.
+#   그 외 (기타, 채용공고 등 비법률 문서)
+#법률 문서만가능하게 하기위해서
+LAW_CATEGORIES = {"법령·규정", "판결문·결정문", "계약서·협약서"}
+
+# 법률 관련이지만 조/항 구조 없는 문서 → clean_text=False 일반 청킹
+LAW_UNSTRUCTURED = {"행정문서·공문", "보고서·연구자료"}
 
 # 개정일 정규식 패턴 (우선순위 순)
 _RE_DATES: list[re.Pattern] = [
@@ -272,7 +281,13 @@ class DocumentSummarize:
             category = "기타"
         
         # 2. 법령 카테고리 아니면 청킹 스킵 → 요약만 반환
-        if category not in LAW_CATEGORIES:
+        if category in LAW_CATEGORIES:
+            _clean =True
+            #조/항 구조 청킹
+        elif category in LAW_UNSTRUCTURED:
+            _clean=False
+        else:
+            #비 법률문서 -> 청킹스킵
             return DocumentMeta(
                     category=category,
                     error="해당 문서 요약을 실패했습니다."

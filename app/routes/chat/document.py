@@ -15,7 +15,7 @@ from app.db.models.document import Document, FileType, Status
 from app.schemas.chat.response import DocumentResponse
 #vector
 from app.db.vector.document_pipeline import extract_text_from_file
-from app.db.vector.document_summarize import summarize_document,LAW_CATEGORIES
+from app.db.vector.document_summarize import summarize_document,LAW_CATEGORIES,LAW_UNSTRUCTURED
 from app.db.vector.indexer import index_document
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -163,7 +163,7 @@ async def upload_file(
             summary = ""      
 
     # 법률 문서 아니면 파일 삭제 후 에러 반환
-    if meta is None or meta.category not in LAW_CATEGORIES:
+    if meta is None or meta.category not in (LAW_CATEGORIES | LAW_UNSTRUCTURED):
         os.remove(file_path)  # 저장된 파일도 정리
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
