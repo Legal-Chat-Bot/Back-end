@@ -75,7 +75,7 @@ def get_documents(
 @router.get(
         "/documents",
         response_model=list[DocumentResponse],
-        summary="문서 전체 조회"
+        summary="문서 조회"
 )
 def user_documents(
     current_user: User = Depends(get_current_user),
@@ -264,7 +264,7 @@ async def delete_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="문서를 찾을 수 없습니다."
         )
-
+    
     try:
         
         delete = await delete_document_index(document=document, db=db)
