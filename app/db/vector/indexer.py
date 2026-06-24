@@ -254,7 +254,6 @@ async def delete_document_index(
     vector_ids = [str(chunk.vector_id) for chunk in chunks]
 
     namespace=pinecone.user_namespace(str(document.user_id))
-    print(document.user_id)
     # 2. Pinecone 먼저 삭제 (Vector DB -> RDB 순)
     pinecone.delete_by_ids(vector_ids, namespace=namespace)
 
