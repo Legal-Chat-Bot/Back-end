@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     KAKAO_REDIRECT_URI: str = Field(default=...)
     KAKAO_CLIENT_SECRET: str = Field(default=...)
 
+    # Admin 계정 세팅
+    ADMIN_EMAIL: str = Field(default=...)
+    ADMIN_PASSWORD: str = Field(default=...)
+    ADMIN_NAME: str = Field(default=...)
+
 
     class Config:
         env_file = BASE_DIR+"/.env"

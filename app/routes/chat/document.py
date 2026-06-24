@@ -57,7 +57,8 @@ def make_storage_filename(original_filename: str) -> str:
 
 @router.get(
         "/sessions/{session_id}/documents",
-        response_model=list[DocumentResponse]
+        response_model=list[DocumentResponse],
+        summary="채팅방 문서 조회"
 )
 def get_documents(
     session_id: str,
@@ -66,6 +67,21 @@ def get_documents(
 ):
     documents = db.query(Document).filter(
         Document.session_id == session_id,
+        Document.user_id == current_user.user_id,
+    ).order_by(Document.created_at.asc()).all()
+
+    return documents
+
+@router.get(
+        "/documents",
+        response_model=list[DocumentResponse],
+        summary="문서 전체 조회"
+)
+def user_documents(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    documents = db.query(Document).filter(
         Document.user_id == current_user.user_id,
     ).order_by(Document.created_at.asc()).all()
 
@@ -104,7 +120,9 @@ async def upload_file(
             title=original_filename,  # 파일명을 제목으로
         )
         db.add(chat_session)
-        db.flush()  # commit 전에 DB에 반영 (document FK 연결 위해)
+        db.commit()
+        db.refresh(chat_session)
+        
 
     # settings에서 설정한 directory 접근
     upload_dir = settings.UPLOAD_DIR
@@ -169,9 +187,6 @@ async def upload_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="법률 관련 문서만 업로드 가능합니다.",
     )
-    # 기본값일경우 채팅방이름 변경 파일이 법률파일일때만
-    if chat_session.title == "새 대화":
-        chat_session.title = original_filename
 
     # 추후 요약LLM도 생성 후 summary에 적용 시키기
     # Websocket 연동도 같이 진행
@@ -209,5 +224,7 @@ async def upload_file(
         print("인덱싱 실패:", e)
         document.status = Status.FAILED
         db.commit()
-    document.session_title = chat_session.title
+    finally:
+        db.close()
+    
     return document
