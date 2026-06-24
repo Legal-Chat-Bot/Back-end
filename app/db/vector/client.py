@@ -2,9 +2,7 @@ from app.core.config import settings
 from pinecone import Pinecone, ServerlessSpec
 from pinecone.data import Index
 
-from uuid import UUID
 
-import time
 
 
 # _pc ← 언더스코어 = 모듈 내부에서만 쓰는 변수라는 관례 =>해당모듈에서만사용.
