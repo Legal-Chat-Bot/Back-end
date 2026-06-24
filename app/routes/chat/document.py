@@ -10,7 +10,7 @@ from app.db.db import get_db
 from app.core.config import settings
 from app.core.security import get_current_user
 from app.db.models.user import User
-from app.db.models.chat import Chat
+from app.db.models.chat import Chat, Message
 from app.db.models.document import Document, FileType, Status,Category
 from app.schemas.chat.response import DocumentResponse
 #vector
@@ -266,17 +266,55 @@ async def delete_document(
         )
     
     try:
-        
-        delete = await delete_document_index(document=document, db=db)
-        db.delete(document)
+        # 문서가 속한 채팅방 ID를 먼저 저장
+        session_id = document.session_id
+
+        # 벡터 DB / 인덱스 삭제
+        delete_target = await delete_document_index(
+            document=document,
+            db=db
+        )
+
+        # 문서 삭제
+        db.delete(delete_target)
+
+        # commit 전 현재 트랜잭션에 삭제 반영
+        db.flush()
+
+        # 같은 채팅방에 남은 문서 개수 확인
+        document_count = db.query(Document).filter(
+            Document.session_id == session_id
+        ).count()
+
+        # 같은 채팅방에 남은 메시지 개수 확인
+        message_count = db.query(Message).filter(
+            Message.session_id == session_id
+        ).count()
+
+        chat_session_deleted = False
+
+        # 문서도 없고 메시지도 없으면 채팅방 삭제
+        if document_count == 0 and message_count == 0:
+            chat_session = db.query(Chat).filter(
+                Chat.session_id == session_id,
+                Chat.user_id == user.user_id
+            ).first()
+
+            if chat_session:
+                db.delete(chat_session)
+                chat_session_deleted = True
+
         db.commit()
 
         return {
-            "message": "문서가 삭제되었습니다."
+            "message": "문서가 삭제되었습니다.",
+            "chat_session_deleted": chat_session_deleted
         }
     
     except Exception as e:  
+        db.rollback()
         print("문서 삭제 실패 : ", e)
-
-    finally:
-        db.close()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="문서 삭제에 실패했습니다."
+        )
