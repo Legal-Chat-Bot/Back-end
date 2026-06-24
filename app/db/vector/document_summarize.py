@@ -62,9 +62,18 @@ SUPPORTED_CATEGORIES = [
     "기타",
 ]
 
-#법률 문서만가능하게 하기위해서
-LAW_CATEGORIES = {"법령·규정", "판결문·결정문", "계약서·협약서", "행정문서·공문"}
 
+#   카테고리를 두 축으로 분리해 청킹 방식을 결정한다.
+#   LAW_STRUCTURED   (법령·규정 / 판결문·결정문 / 계약서·협약서)
+#     → 조/항 구조가 존재할 가능성이 높으므로 clean_text=True 로 구조 청킹.
+#   LAW_UNSTRUCTURED (행정문서·공문 / 보고서·연구자료)
+#     → 법률 관련이지만 조/항 구조가 없으므로 clean_text=False 로 일반 청킹.
+#   그 외 (기타, 채용공고 등 비법률 문서)
+#법률 문서만가능하게 하기위해서
+LAW_CATEGORIES = {"법령·규정", "판결문·결정문", "계약서·협약서"}
+
+# 법률 관련이지만 조/항 구조 없는 문서 → clean_text=False 일반 청킹
+LAW_UNSTRUCTURED = {"행정문서·공문", "보고서·연구자료"}
 
 # 개정일 정규식 패턴 (우선순위 순)
 _RE_DATES: list[re.Pattern] = [
@@ -198,7 +207,9 @@ def _call_llm(prompt: str) ->str:
     실패시 RuntimeError 발생.
     '''
     try:
-        return _llm.invoke(prompt).strip()
+        result = _llm.invoke(prompt).strip()
+        print(f"[LLM RAW]\n{result}\n")  # 추가
+        return result
     except Exception as e:
         raise RuntimeError(f"로컬 LLM 호출 실패: {e}")
 
@@ -268,18 +279,27 @@ class DocumentSummarize:
             raw_json = _call_llm(preview_prompt)
             pre_result = self._parse_response(raw_json)
             category = pre_result.category
+            preview_summary = pre_result.summary  # 1차 summary 보존
+            print(f"[PRE CATEGORY] {repr(category)}")  # 추가
         except Exception as e:
             category = "기타"
+            preview_summary = ""
         
         # 2. 법령 카테고리 아니면 청킹 스킵 → 요약만 반환
-        if category not in LAW_CATEGORIES:
+        if category in LAW_CATEGORIES:
+            _clean =True
+            #조/항 구조 청킹
+        elif category in LAW_UNSTRUCTURED:
+            _clean=False
+        else:
+            #비 법률문서 -> 청킹스킵
             return DocumentMeta(
                     category=category,
                     error="해당 문서 요약을 실패했습니다."
             )
-        #3.청킹 법률문서는 청킹
+        # 3. 청킹 법률문서는 청킹
         try:
-            chunks = self._chunker.chunk(extracted_text, clean_text=clean_text)
+            chunks = self._chunker.chunk(extracted_text, clean_text=_clean)
         except Exception as e:
             return DocumentMeta(error=f"청킹 실패: {e}")
         if not chunks:
@@ -313,7 +333,12 @@ class DocumentSummarize:
         
         result.law_date = date_hint
         result.law_name = law_name
-        result.chunks = chunks  # 추가
+        result.chunks = chunks
+
+        # 2차 summary가 비거나 1차보다 짧으면 1차 summary 사용
+        if not result.summary or len(result.summary) < len(preview_summary):
+            result.summary = preview_summary
+
         return result
     
     #내부 헬퍼
@@ -333,24 +358,38 @@ class DocumentSummarize:
         cleaned = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
 
         try:
-            # json파일 정제.
-            data =json.loads(cleaned)
-        except json.JSONDecodeError as e:
-            return DocumentMeta(
-                error = f"JSON 파싱 실패: {e} | raw={raw:}"
-            )
-        
-        
+            data = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # JSON 파싱 실패 시 정규식으로 category/summary 직접 추출
+            cat_match = re.search(r'"category"\s*:\s*"([^"]+)"', cleaned)
+            # summary 블록 전체 추출: "summary": "..." 이후 closing } 직전까지
+            sum_match = re.search(r'"summary"\s*:\s*"([\s\S]+?)"\s*\}', cleaned)
+            if not sum_match:
+                # 닫는 따옴표+중괄호 없는 경우 끝까지 캡처
+                sum_match = re.search(r'"summary"\s*:\s*"([\s\S]+)', cleaned)
+
+            category = cat_match.group(1) if cat_match else "기타"
+            summary = sum_match.group(1) if sum_match else ""
+
+            if category not in SUPPORTED_CATEGORIES:
+                category = "기타"
+
+            return DocumentMeta(category=category, summary=summary)
+
         category = data.get("category", "기타")
         summary = data.get("summary", "")
 
-        #카테고리 유효성 검증
+        # LLM이 summary를 list나 set으로 반환하는 경우 방어
+        if isinstance(summary, (list, set)):
+            summary = "\n".join(str(s) for s in summary)
+
+        # 카테고리 유효성 검증
         if category not in SUPPORTED_CATEGORIES:
-            category ="기타"
+            category = "기타"
 
         return DocumentMeta(
             category=category,
-            summary= summary,
+            summary=summary,
         )
 
 
@@ -375,10 +414,3 @@ def summarize_document(extracted_text:str, chunk_config:ChunkConfig | None = Non
         print(meta.summary)     # "이 법은 ..."
     '''
     return DocumentSummarize(chunk_config).summarize(extracted_text, clean_text=clean_text)
-
-
-        
-
-
-
-

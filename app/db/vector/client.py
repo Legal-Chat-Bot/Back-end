@@ -2,7 +2,7 @@ from app.core.config import settings
 from pinecone import Pinecone, ServerlessSpec
 from pinecone.data import Index
 
-from uuid import UUID
+
 
 
 # _pc ← 언더스코어 = 모듈 내부에서만 쓰는 변수라는 관례 =>해당모듈에서만사용.
@@ -46,7 +46,7 @@ def get_index() :
 def public_namespace() -> str:
     return "public"
 
-def user_namespace(user_id: UUID) -> str:
+def user_namespace(user_id: str) -> str:
     return f"user_{user_id}"
 
 # Upsert
@@ -87,10 +87,13 @@ def delete_by_document_id(document_id:str, namespace:str) -> None:
         namespace=namespace,
     )
 
-# ✅ 네임스페이스 전체 초기화 (재인덱싱 전 중복 제거용)
-def delete_all(namespace: str) -> None:
-    get_index().delete(delete_all=True, namespace=namespace)
-    print(f"[Pinecone] 전체 삭제 완료: namespace={namespace}")
+#유저 날라가면 유저 pincone날리는 것.
+async def delete_all(namespace: str) -> None:
+    index = get_index()
+    namespace = user_namespace(namespace)
+    # 1. 삭제 명령 전달
+    index.delete(delete_all=True, namespace=namespace)
+    print(f"[Pinecone] 전체 삭제 명령 전송 완료: namespace={namespace}")
 
 def delete_by_ids(vector_ids: list[str], namespace: str) -> None:
     """
