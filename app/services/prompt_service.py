@@ -26,7 +26,6 @@ def format_search_results(search_results: list[dict]) -> str:
         article = metadata.get("article", "")
         law_name = metadata.get("law_name") or metadata.get("category", "")
         content = content.strip() or "본문 내용 없음"
-
         if article:
             lines.append(f"{i}. [조문: {article}] [본문]\n{content}")
         elif law_name:
