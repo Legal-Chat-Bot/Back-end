@@ -30,12 +30,7 @@ Category Selection Rules:
   1. The sender is a government or public institution.
   2. The recipient is explicitly identified.
   3. The document contains administrative instructions, notifications, directives, or orders.
-* "보고서·연구자료": Research reports, analytical reports, surveys, or study materials.
-* "회의록·의사록": Meeting records or minutes.
-* "매뉴얼·지침서": Manuals, guidelines, instructions, or operational guides.
-* "재무·회계문서": Financial statements, budgets, accounting documents, or financial records.
-* "기술문서": Technical specifications, system designs, architecture documents, or software development documents.
-* "기타": Any document that does not fit the categories above, including job postings, FAQs, notices, promotional materials, and general informational documents.
+* "기타": Any document that does not fit the categories above, including reports, research materials, meeting minutes, manuals, guidelines, financial documents, accounting records, technical documents, job postings, FAQs, notices, promotional materials, and general informational documents.
 
 2. summary
    Write the core contents as bullet points.
@@ -45,7 +40,7 @@ Category Selection Rules:
 * Use only information contained in the document.
 
 === Category List ===
-{categories}
+["법령·규정", "계약서·협약서", "판결문·결정문", "행정문서·공문", "기타"]
 
 === Document Text ===
 {text}
