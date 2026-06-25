@@ -94,6 +94,7 @@ async def process_chat(
         context_mode=context_mode,
         user_id=user_id,
         top_k=top_k,
+        db=db,
     )
 
     # print(f"4:{search_results}")

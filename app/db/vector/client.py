@@ -54,7 +54,7 @@ def upsert(vectors: list[dict], namespace:str)-> dict:
     return get_index().upsert(vectors=vectors, namespace=namespace)
 
 # Query
-def query(dense_vector: list[float], sparse_vector:dict, namespace:str, top_k:int=5, filter: dict | None=None, alpha:float=0.3) -> list[dict]:
+def query(dense_vector: list[float], sparse_vector:dict, namespace:str, top_k:int=5, filter: dict | None=None, alpha:float=0.7) -> list[dict]:
     # dense_vector값과 곱해주는 함수입니다. v가 dense_vector값 이는 70퍼 할당한다는 의미입니다.
     # sparse_vector는 자동으로 30퍼만할당.
     scaled_dense = [v * alpha for v in dense_vector]
