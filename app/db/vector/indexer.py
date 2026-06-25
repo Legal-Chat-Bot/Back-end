@@ -22,7 +22,6 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
-from fastapi import Depends
 
 from app.db.db import get_db
 import app.db.vector.client as pinecone
@@ -30,7 +29,6 @@ from app.db.vector.embedding import embed_texts
 from app.db.vector.chunker import Chunker, Chunk
 from app.crud.chunk_crud import (
     get_chunks_by_document,
-    delete_chunks_from_rdb,
     create_chunks_bulk,
 )
 from app.crud.chunk_dataset_crud import update_chunk_dataset_text

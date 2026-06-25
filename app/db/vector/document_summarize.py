@@ -330,7 +330,8 @@ class DocumentSummarize:
                 law_name = law_name,
                 error = f"로컬 llm 호출 실패: {e}",
             )
-        
+        # 이상한카테고리 수정.
+        result.category = category
         result.law_date = date_hint
         result.law_name = law_name
         result.chunks = chunks

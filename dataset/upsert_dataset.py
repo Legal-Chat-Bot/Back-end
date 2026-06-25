@@ -20,6 +20,7 @@ from app.crud.chunk_dataset_crud import create_chunk_dataset
 from app.core.config import settings
 
 # 상수 
+SPARSE_THRESHOLD = 0.15
 UPSERT_BATCH     = 100
 EMBED_BATCH      = 32     
 
@@ -45,12 +46,12 @@ def _parse_sparse(raw: dict) -> dict:
     if isinstance(raw, dict):
         if "indices" in raw and "values" in raw:
             for idx, val in zip(raw["indices"], raw["values"]):
-                if float(val) > settings.SPARSE_THRESHOLD:
+                if float(val) > SPARSE_THRESHOLD:
                     indices.append(int(idx))
                     values.append(float(val))
         else:
             for k, v in raw.items():
-                if float(v) > settings.SPARSE_THRESHOLD:
+                if float(v) > SPARSE_THRESHOLD:
                     indices.append(int(k))
                     values.append(float(v))
     else:
