@@ -1,7 +1,5 @@
 # ⚖️ Legal Chat Bot Back-end
 
-# ⚖️ Legal Chat Bot Back-end
-
 법률 상담 챗봇 서비스를 위한 **FastAPI 기반 백엔드 서버**입니다.
 
 사용자의 법률 질문을 WebSocket으로 수신하고, PostgreSQL에 대화 이력을 저장하며,
