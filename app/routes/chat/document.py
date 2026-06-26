@@ -3,9 +3,11 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
+from app.services.logger_service import create_log
+from app.db.models.logger import Level
 from app.db.db import get_db
 from app.core.config import settings
 from app.core.security import get_current_user
@@ -93,6 +95,7 @@ def user_documents(
 )
 async def upload_file(
     session_id: str,
+    request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)

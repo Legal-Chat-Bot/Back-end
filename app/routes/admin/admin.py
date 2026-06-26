@@ -119,3 +119,14 @@ async def admin_delete_document(
         print("문서 삭제 실패 : ", e)
     finally:
         db.close()
+
+router.get(
+    "/logger/info",
+    summary="관리자용 활동 로고 조회"
+)
+def get_logger_info(
+    db: Session = Depends(get_db)
+):
+    logger = ""
+
+    return logger
