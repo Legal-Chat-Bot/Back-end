@@ -7,7 +7,15 @@ from app.db.models.chat import Chat
 from app.core.security import get_current_user
 from app.db.models.user import User
 from app.db.models.chat import Message
-from app.schemas.chat.response import ChatSessionResponse, MessageResponse
+from app.db.models.document import Document
+from app.schemas.chat.response import(
+     ChatSessionResponse,
+     MessageResponse,
+     DocumentResponse,
+     TotalDocumentItem,
+     TotalMessageItem,
+     TotalItemResponse
+)
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -63,3 +71,46 @@ def get_messages(
     ).order_by(Message.question_at.asc()).all()
 
     return messages
+
+@router.get(
+    "/sessions/{session_id}/total",
+    response_model=list[TotalItemResponse],
+)
+def get_session_total(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    messages = db.query(Message).filter(
+        Message.session_id == session_id,
+        Message.user_id == current_user.user_id,
+    ).all()
+
+    documents = db.query(Document).filter(
+        Document.session_id == session_id,
+        Document.user_id == current_user.user_id,
+    ).all()
+
+    total_items = []
+
+    for message in messages:
+        total_items.append(
+            TotalMessageItem(
+                type="message",
+                created_at=message.question_at,
+                message=MessageResponse.model_validate(message),
+            )
+        )
+
+    for document in documents:
+        total_items.append(
+            TotalDocumentItem(
+                type="document",
+                created_at=document.created_at,
+                document=DocumentResponse.model_validate(document),
+            )
+        )
+
+    total_items.sort(key=lambda item: item.created_at)
+
+    return total_items

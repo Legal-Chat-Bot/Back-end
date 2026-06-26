@@ -8,6 +8,8 @@ RUN apt-get update \
         zlib1g-dev \
         libgl1 \
         libglib2.0-0 \
+        libfreetype6 \
+        libfreetype6-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

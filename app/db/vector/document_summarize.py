@@ -12,7 +12,6 @@
 #
 # 설계 원칙:
 #   - 청크 전체를 API에 보내지 않고 대표 청크만 샘플링 (토큰 비용 절감)
-#   - 개정일은 정규식 1차 추출 → Claude 2차 보완
 #   - 카테고리는 사전 정의된 목록 중 선택 (확장 가능)
 #   - 실패 시 빈 값 반환 (파이프라인 전체가 죽지 않도록)
 # clean_text 옵션
@@ -29,10 +28,10 @@ from __future__ import annotations
 
 import re
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 from typing import Optional
 
-from langchain_community.llms import Ollama
+from langchain_ollama import OllamaLLM
 from app.core.config import settings
 from app.db.vector.chunker import Chunker, ChunkConfig, Chunk
 from app.db.vector.summarize_prompt import ANALYSIS_PROMPT_TEMPLATE
@@ -40,7 +39,7 @@ from app.db.vector.summarize_prompt import ANALYSIS_PROMPT_TEMPLATE
 # 상수값.
 
 # 로컬 llm 한번만 로드
-_llm = Ollama(base_url=settings.OLLAMA_BASE_URL, model=settings.SUMMARIZE_MODEL, temperature=0.1)
+_llm = OllamaLLM(base_url=settings.OLLAMA_BASE_URL, model=settings.SUMMARIZE_MODEL, temperature=0.1)
 
 
 # 요약에 사용할 최대 청크
@@ -49,7 +48,7 @@ MAX_SAMPLE_CHUNKS = 10
 # 요약에 넣기전 분류용 최대 텍스트 길이 (토큰 폭발 방지)
 MAX_ANALYSIS_CHARS = 8000
 
-# 지원 카테고리 목록 (필요 시 확장) 안쓸수도 있음. 미정
+# 지원 카테고리 목록
 SUPPORTED_CATEGORIES = [
     "법령·규정",
     "계약서·협약서",
@@ -62,6 +61,19 @@ SUPPORTED_CATEGORIES = [
     "기술문서",
     "기타",
 ]
+
+
+#   카테고리를 두 축으로 분리해 청킹 방식을 결정한다.
+#   LAW_STRUCTURED   (법령·규정 / 판결문·결정문 / 계약서·협약서)
+#     → 조/항 구조가 존재할 가능성이 높으므로 clean_text=True 로 구조 청킹.
+#   LAW_UNSTRUCTURED (행정문서·공문 / 보고서·연구자료)
+#     → 법률 관련이지만 조/항 구조가 없으므로 clean_text=False 로 일반 청킹.
+#   그 외 (기타, 채용공고 등 비법률 문서)
+#법률 문서만가능하게 하기위해서
+LAW_CATEGORIES = {"법령·규정", "판결문·결정문", "계약서·협약서"}
+
+# 법률 관련이지만 조/항 구조 없는 문서 → clean_text=False 일반 청킹
+LAW_UNSTRUCTURED = {"행정문서·공문", "보고서·연구자료"}
 
 # 개정일 정규식 패턴 (우선순위 순)
 _RE_DATES: list[re.Pattern] = [
@@ -93,8 +105,8 @@ class DocumentMeta:
     law_date: Optional[str] = None # "YYYY-MM-DD" or None
     summary: str  = ""
     law_name: str = ""
-    chunk_count: int = 0 #청크갯수
     error: Optional[str] = None  #오류 메시지
+    chunks: list[Chunk] = field(default_factory=list)  # 추가
 
 # 날짜 추출 헬퍼
 
@@ -195,7 +207,9 @@ def _call_llm(prompt: str) ->str:
     실패시 RuntimeError 발생.
     '''
     try:
-        return _llm.invoke(prompt).strip()
+        result = _llm.invoke(prompt).strip()
+        print(f"[LLM RAW]\n{result}\n")  # 추가
+        return result
     except Exception as e:
         raise RuntimeError(f"로컬 LLM 호출 실패: {e}")
 
@@ -258,27 +272,53 @@ class DocumentSummarize:
         if not extracted_text or not extracted_text.strip():
             return DocumentMeta(error="추출돤 텍스트가 없습니다")
         
-        #1.청킹
+        # 1. 카테고리 먼저 판단 (짧은 문서면 전체, 길면 앞부분만)
         try:
-            chunks = self._chunker.chunk(extracted_text, clean_text=clean_text)
+            preview_text = extracted_text[:2000] if len(extracted_text) > 2000 else extracted_text
+            preview_prompt = _build_prompt(preview_text)
+            raw_json = _call_llm(preview_prompt)
+            pre_result = self._parse_response(raw_json)
+            category = pre_result.category
+            preview_summary = pre_result.summary  # 1차 summary 보존
+            print(f"[PRE CATEGORY] {repr(category)}")  # 추가
+        except Exception as e:
+            category = "기타"
+            preview_summary = ""
+        
+        # 2. 법령 카테고리 아니면 청킹 스킵 → 요약만 반환
+        if category in LAW_CATEGORIES:
+            _clean =True
+            #조/항 구조 청킹
+        elif category in LAW_UNSTRUCTURED:
+            _clean=False
+        else:
+            #비 법률문서 -> 청킹스킵
+            return DocumentMeta(
+                    category=category,
+                    error="해당 문서 요약을 실패했습니다."
+            )
+        # 3. 청킹 법률문서는 청킹
+        try:
+            chunks = self._chunker.chunk(extracted_text, clean_text=_clean)
         except Exception as e:
             return DocumentMeta(error=f"청킹 실패: {e}")
-        
         if not chunks:
             return DocumentMeta(error="청킹 결과가 없습니다.")
+        
+        # 4.정규식 날짜 추출
+        date_hint = _extract_revised_date_regex(extracted_text)
+        
         
         # 법령명 (chunker로 추출한 값, 첫 청크 기준)
         # clean_text=False면 chunker가 law_name을 채우지 않으므로 자연히 빈 문자열
         law_name = chunks[0].law_name if chunks else ""
 
-        # 2.정규식 날짜 추출
-        date_hint = _extract_revised_date_regex(extracted_text)
 
-        # 3. 샘플 청크 선택
+        # 5. 샘플 청크 선택
         sample_chunks = _sample_chunks(chunks)
         summarize_text = _build_sample_text(sample_chunks)
 
-        # 4. 로컬 llm 호출 - category/ summarty만 담당.
+        # 6. 로컬 llm 호출 - category/ summarty만 담당.
         try:
             prompt = _build_prompt(summarize_text)
             raw_json = _call_llm(prompt)
@@ -288,13 +328,18 @@ class DocumentSummarize:
             return DocumentMeta(
                 law_date= date_hint,
                 law_name = law_name,
-                chunk_count= len(chunks),
                 error = f"로컬 llm 호출 실패: {e}",
             )
-        
+        # 이상한카테고리 수정.
+        result.category = category
         result.law_date = date_hint
         result.law_name = law_name
-        result.chunk_count = len(chunks)
+        result.chunks = chunks
+
+        # 2차 summary가 비거나 1차보다 짧으면 1차 summary 사용
+        if not result.summary or len(result.summary) < len(preview_summary):
+            result.summary = preview_summary
+
         return result
     
     #내부 헬퍼
@@ -314,24 +359,38 @@ class DocumentSummarize:
         cleaned = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
 
         try:
-            # json파일 정제.
-            data =json.loads(cleaned)
-        except json.JSONDecodeError as e:
-            return DocumentMeta(
-                error = f"JSON 파싱 실패: {e} | raw={raw:}"
-            )
-        
-        
+            data = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # JSON 파싱 실패 시 정규식으로 category/summary 직접 추출
+            cat_match = re.search(r'"category"\s*:\s*"([^"]+)"', cleaned)
+            # summary 블록 전체 추출: "summary": "..." 이후 closing } 직전까지
+            sum_match = re.search(r'"summary"\s*:\s*"([\s\S]+?)"\s*\}', cleaned)
+            if not sum_match:
+                # 닫는 따옴표+중괄호 없는 경우 끝까지 캡처
+                sum_match = re.search(r'"summary"\s*:\s*"([\s\S]+)', cleaned)
+
+            category = cat_match.group(1) if cat_match else "기타"
+            summary = sum_match.group(1) if sum_match else ""
+
+            if category not in SUPPORTED_CATEGORIES:
+                category = "기타"
+
+            return DocumentMeta(category=category, summary=summary)
+
         category = data.get("category", "기타")
         summary = data.get("summary", "")
 
-        #카테고리 유효성 검증
+        # LLM이 summary를 list나 set으로 반환하는 경우 방어
+        if isinstance(summary, (list, set)):
+            summary = "\n".join(str(s) for s in summary)
+
+        # 카테고리 유효성 검증
         if category not in SUPPORTED_CATEGORIES:
-            category ="기타"
+            category = "기타"
 
         return DocumentMeta(
             category=category,
-            summary= summary,
+            summary=summary,
         )
 
 
@@ -356,10 +415,3 @@ def summarize_document(extracted_text:str, chunk_config:ChunkConfig | None = Non
         print(meta.summary)     # "이 법은 ..."
     '''
     return DocumentSummarize(chunk_config).summarize(extracted_text, clean_text=clean_text)
-
-
-        
-
-
-
-

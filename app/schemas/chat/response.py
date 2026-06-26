@@ -1,7 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from uuid import UUID
-from typing import Optional 
+from typing import Optional, Annotated, Literal, Union
 
 from app.db.models.document import FileType, Status
 
@@ -52,6 +52,23 @@ class DocumentResponse(BaseModel):
     storage_url: str
     status: Status
     summary: str
-    created_at: datetime
+    created_at: datetime 
     class Config:
         from_attributes = True
+
+class TotalMessageItem(BaseModel):
+    type: Literal["message"] = "message"
+    created_at: datetime
+    message: MessageResponse
+
+
+class TotalDocumentItem(BaseModel):
+    type: Literal["document"] = "document"
+    created_at: datetime
+    document: DocumentResponse
+
+
+TotalItemResponse = Annotated[
+    Union[TotalMessageItem, TotalDocumentItem],
+    Field(discriminator="type")
+]
