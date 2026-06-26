@@ -14,6 +14,7 @@ from app.schemas.chat.response import(
      DocumentResponse
 )
 from app.db.vector.indexer import delete_document_index
+from app.db.models.logger import Logger, Level
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -122,11 +123,26 @@ async def admin_delete_document(
 
 router.get(
     "/logger/info",
-    summary="관리자용 활동 로고 조회"
+    summary="관리자용 활동 로그 조회"
 )
 def get_logger_info(
     db: Session = Depends(get_db)
 ):
-    logger = ""
+    logger = db.query(Logger).filter(
+        Logger.level == Level.INFO
+    ).order_by(Logger.created_at.desc()).all()
+
+    return logger
+
+router.get(
+    "/logger/error",
+    summary="관리자용 에러 로그 조회"
+)
+def get_logger_error(
+        db: Session = Depends(get_db)
+):
+    logger = db.query(Logger).filter(
+        Logger.level.in_([Level.WARN, Level.ERROR])
+    ).order_by(Logger.created_at.desc()).all()
 
     return logger
