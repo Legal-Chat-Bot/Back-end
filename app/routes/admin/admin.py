@@ -99,6 +99,40 @@ def admin_documents(
 
     return documents
 
+@router.get(
+    "/logger/info",
+    response_model=list[LoggerResponse],
+    summary="관리자용 활동 로그 조회"
+)
+def get_logger_info(
+    db: Session = Depends(get_db)
+):
+    logger = db.query(Logger).filter(
+        Logger.level == Level.INFO
+    ).order_by(Logger.created_at.desc()).all()
+
+    return logger
+
+@router.get(
+    "/logger/error",
+    response_model=list[LoggerResponse],
+    summary="관리자용 문서 에러 로그 조회"
+)
+def get_logger_error(
+    db: Session = Depends(get_db)
+):
+    logger = (
+        db.query(Logger)
+        .filter(
+            Logger.level.in_([Level.WARN, Level.ERROR]),
+            Logger.endpoint.ilike("%document%")
+        )
+        .order_by(Logger.created_at.desc())
+        .all()
+    )
+
+    return logger
+
 @router.delete(
     "/{document_id}/document",
     summary="관리자용 문서 삭제"
@@ -166,37 +200,3 @@ async def admin_delete_document(
         print("문서 삭제 실패 : ", e)
     finally:
         db.close()
-
-router.get(
-    "/logger/info",
-    response_model=list[LoggerResponse],
-    summary="관리자용 활동 로그 조회"
-)
-def get_logger_info(
-    db: Session = Depends(get_db)
-):
-    logger = db.query(Logger).filter(
-        Logger.level == Level.INFO
-    ).order_by(Logger.created_at.desc()).all()
-
-    return logger
-
-@router.get(
-    "/logger/error",
-    response_model=list[LoggerResponse],
-    summary="관리자용 문서 에러 로그 조회"
-)
-def get_logger_error(
-    db: Session = Depends(get_db)
-):
-    logger = (
-        db.query(Logger)
-        .filter(
-            Logger.level.in_([Level.WARN, Level.ERROR]),
-            Logger.endpoint.ilike("%document%")
-        )
-        .order_by(Logger.created_at.desc())
-        .all()
-    )
-
-    return logger
