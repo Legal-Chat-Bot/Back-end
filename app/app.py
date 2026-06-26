@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from app.routes.chat.document import router as document_router
 from app.routes.oauth.kakao import router as kakao_router
 from app.routes.admin.admin import router as admin_router
 import os
+import uuid
 
 app = FastAPI(title=settings.PROJECT_NAME)
 app.include_router(login_router)
@@ -44,3 +45,14 @@ def read_test(
     db: Session = Depends(get_db)
 ):
     return {"message": "Hello, World!"}
+
+
+@app.middleware("http")
+async def trace_id_middleware(request: Request, call_next):
+    trace_id = request.headers.get("X-Trace-Id") or uuid.uuid4().hex
+    request.state.trace_id = trace_id
+
+    response = await call_next(request)
+    response.headers["X-Trace-Id"] = trace_id
+
+    return response
