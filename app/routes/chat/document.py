@@ -316,10 +316,15 @@ async def delete_document(
             detail="사용자를 찾을 수 없습니다.",
         )
     
-    document = db.query(Document).filter(
-        User.user_id == current_user.user_id,
-        Document.document_id == document_id
-    ).first()
+    document = (
+        db.query(Document)
+        .join(Chat, Document.session_id == Chat.session_id)
+        .filter(
+            Document.document_id == document_id,
+            Chat.user_id == current_user.user_id
+        )
+        .first()
+    )
 
     if not document:
         create_log(
@@ -343,6 +348,7 @@ async def delete_document(
     try:
         # 문서가 속한 채팅방 ID를 먼저 저장
         session_id = document.session_id
+        file_name = document.file_name
 
         # 벡터 DB / 인덱스 삭제
         delete_target = await delete_document_index(
