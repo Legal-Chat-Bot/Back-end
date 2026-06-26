@@ -1,9 +1,13 @@
+import uuid
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timezone
 import traceback
 
+from app.services.logger_service import create_log
+from app.db.models.logger import Level
 from app.services.chat_service import process_chat
 from app.db.db import get_db
 from app.db.models.chat import Chat
@@ -20,9 +24,21 @@ async def websocket_chat(
     session_id: Optional[str] = Query(None),  # 있으면 기존, 없으면 새 세션
     db: Session = Depends(get_db),
 ):
+    trace_id = uuid.uuid4().hex
+
     user = await verify_ws_token(token, db)
 
     if not user:
+        create_log(
+            db,
+            level=Level.WARN,
+            endpoint="/ws/chat",
+            method="WS",
+            status_code=401,
+            error_code="WS_AUTH_001",
+            message="WebSocket 연결 실패 - 토큰 검증 실패",
+            trace_id=trace_id,
+        )
         await websocket.close(code=4001)
         return
 
@@ -38,6 +54,18 @@ async def websocket_chat(
         ).first()
 
         if not chat_session:
+            create_log(
+                db,
+                level=Level.WARN,
+                endpoint="/ws/chat",
+                method="WS",
+                status_code=404,
+                error_code="WS_SESSION_001",
+                message=f"WebSocket 세션 조회 실패 - 채팅방 없음: {session_id}",
+                user_id=user.user_id,
+                session_id=session_id,
+                trace_id=trace_id,
+            )
             await websocket.send_json({
                 "type": "error",
                 "code": "SESSION_NOT_FOUND",
@@ -55,6 +83,19 @@ async def websocket_chat(
                 payload = decode_token(token)
                 jti = payload.get("jti")
                 if token_store.is_blacklisted(jti):
+                    create_log(
+                        db,
+                        level=Level.WARN,
+                        endpoint="/ws/chat",
+                        method="WS",
+                        status_code=401,
+                        error_code="WS_AUTH_002",
+                        message="WebSocket 처리 중단 - 블랙리스트 토큰",
+                        user_id=user.user_id,
+                        session_id=chat_session.session_id if chat_session else None,
+                        trace_id=trace_id,
+                    )
+
                     await websocket.send_json({
                         "type": "error",
                         "code": "TOKEN_BLACKLISTED",
@@ -63,6 +104,19 @@ async def websocket_chat(
                     await websocket.close(code=4001)
                     break
             except ValueError:
+                create_log(
+                    db,
+                    level=Level.WARN,
+                    endpoint="/ws/chat",
+                    method="WS",
+                    status_code=401,
+                    error_code="WS_AUTH_003",
+                    message="WebSocket 처리 중단 - 토큰 만료",
+                    user_id=user.user_id,
+                    session_id=chat_session.session_id if chat_session else None,
+                    trace_id=trace_id,
+                )
+
                 await websocket.send_json({
                     "type": "error",
                     "code": "TOKEN_EXPIRED",
@@ -74,6 +128,19 @@ async def websocket_chat(
             message_text = (data.get("message") or "").strip()
 
             if not message_text:
+                create_log(
+                    db,
+                    level=Level.WARN,
+                    endpoint="/ws/chat",
+                    method="WS",
+                    status_code=400,
+                    error_code="WS_MSG_001",
+                    message="빈 메시지 전송",
+                    user_id=user.user_id,
+                    session_id=chat_session.session_id if chat_session else None,
+                    trace_id=trace_id,
+                )
+
                 await websocket.send_json({
                     "type": "error",
                     "code": "EMPTY_MESSAGE",
@@ -89,10 +156,23 @@ async def websocket_chat(
                     user_id=user.user_id,
                     title=message_text[:20],
                 )
+                
 
                 db.add(chat_session)
                 db.commit()
                 db.refresh(chat_session)
+
+                create_log(
+                    db,
+                    level=Level.INFO,
+                    endpoint="/ws/chat",
+                    method="WS",
+                    status_code=201,
+                    message=f"WebSocket 새 채팅방 생성: {chat_session.title}",
+                    user_id=user.user_id,
+                    session_id=chat_session.session_id,
+                    trace_id=trace_id,
+                )
 
                 await websocket.send_json({
                     "type": "session_created",
@@ -134,6 +214,18 @@ async def websocket_chat(
             db.commit()
             db.refresh(msg)
 
+            create_log(
+                db,
+                level=Level.INFO,
+                endpoint="/ws/chat",
+                method="WS",
+                status_code=200,
+                message=f"AI 답변 생성 성공 - message_id={msg.message_id}",
+                user_id=user.user_id,
+                session_id=chat_session.session_id,
+                trace_id=trace_id,
+            )
+
             await websocket.send_json({
                 "type": "message",
                 "session_id": str(chat_session.session_id),
@@ -164,10 +256,34 @@ async def websocket_chat(
             """
 
     except WebSocketDisconnect:
-        pass
+        create_log(
+            db,
+            level=Level.INFO,
+            endpoint="/ws/chat",
+            method="WS",
+            status_code=1000,
+            message="WebSocket 연결 종료",
+            user_id=user.user_id,
+            session_id=chat_session.session_id if chat_session else None,
+            trace_id=trace_id,
+        )
 
     except Exception as e:
         db.rollback()
+
+        create_log(
+            db,
+            level=Level.ERROR,
+            endpoint="/ws/chat",
+            method="WS",
+            status_code=500,
+            error_code="WS_999",
+            message=f"WebSocket 서버 오류: {str(e)}",
+            user_id=user.user_id if user else None,
+            session_id=chat_session.session_id if chat_session else None,
+            trace_id=trace_id,
+        )
+        
         print("[WebSocket ERROR]", repr(e), flush=True)
         traceback.print_exc()
 

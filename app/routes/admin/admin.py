@@ -13,37 +13,84 @@ from app.schemas.chat.response import(
      MessageResponse,
      DocumentResponse
 )
+from app.schemas.auth.response import UserResponse
+from app.schemas.logger.response import LoggerResponse
 from app.db.vector.indexer import delete_document_index
+from app.db.models.logger import Logger, Level
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 @router.get(
+    "/users",
+    response_model=list[UserResponse],
+    summary="관리자용 유저 조회"
+)
+def admin_get_users(
+    db: Session = Depends(get_db)
+):
+    users = db.query(User).order_by(User.updated_at.desc()).all()
+
+    return users
+
+@router.get(
     "/sessions",
-    response_model=list[ChatSessionResponse],
-    summary="관리자 전용 채팅방 조회"
+    summary="관리자용 채팅방 조회"
 )
 def admin_get_sessions(
     db: Session = Depends(get_db)
 ):
-    sessions = db.query(Chat).order_by(Chat.updated_at.desc()).all()
+    sessions = (
+        db.query(Chat, User.name.label("user_name"))
+        .join(User, Chat.user_id == User.user_id)
+        .order_by(Chat.updated_at.desc())
+        .all()
+    )
 
-    return sessions
+    return [
+        {
+            "session_id": chat.session_id,
+            "user_id": chat.user_id,
+            "user_name": user_name,
+            "title": chat.title,
+            "created_at": chat.created_at,
+            "updated_at": chat.updated_at,
+            "last_message_at": chat.last_message_at,
+        }
+        for chat, user_name in sessions
+    ]
 
 @router.get(
     "/messages",
-    response_model=list[MessageResponse]
 )
 def get_messages(
     db: Session = Depends(get_db),
 ):
-    messages = db.query(Message).order_by(Message.question_at.asc()).all()
+    messages = (
+        db.query(Message, User.name.label("user_name"))
+        .join(User, Message.user_id == User.user_id)
+        .order_by(Message.question_at.asc())
+        .all()
+    )
 
-    return messages
+    return [
+        {
+            "message_id": message.message_id,
+            "session_id": message.session_id,
+            "user_id": message.user_id,
+            "user_name": user_name,
+            "question": message.question,
+            "answer": message.answer,
+            "is_legal": message.is_legal,
+            "question_at": message.question_at,
+            "answer_at": message.answer_at,
+        }
+        for message, user_name in messages
+    ]
 
 @router.get(
         "/documents",
         response_model=list[DocumentResponse],
-        summary="관리자 전용 문서 조회"
+        summary="관리자용 문서 조회"
 )
 def admin_documents(
     db: Session = Depends(get_db)
@@ -51,6 +98,40 @@ def admin_documents(
     documents = db.query(Document).order_by(Document.created_at.asc()).all()
 
     return documents
+
+@router.get(
+    "/logger/info",
+    response_model=list[LoggerResponse],
+    summary="관리자용 활동 로그 조회"
+)
+def get_logger_info(
+    db: Session = Depends(get_db)
+):
+    logger = db.query(Logger).filter(
+        Logger.level == Level.INFO
+    ).order_by(Logger.created_at.desc()).all()
+
+    return logger
+
+@router.get(
+    "/logger/error",
+    response_model=list[LoggerResponse],
+    summary="관리자용 문서 에러 로그 조회"
+)
+def get_logger_error(
+    db: Session = Depends(get_db)
+):
+    logger = (
+        db.query(Logger)
+        .filter(
+            Logger.level.in_([Level.WARN, Level.ERROR]),
+            Logger.endpoint.ilike("%document%")
+        )
+        .order_by(Logger.created_at.desc())
+        .all()
+    )
+
+    return logger
 
 @router.delete(
     "/{document_id}/document",

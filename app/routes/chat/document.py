@@ -3,9 +3,11 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
+from app.services.logger_service import create_log, get_trace_id
+from app.db.models.logger import Level
 from app.db.db import get_db
 from app.core.config import settings
 from app.core.security import get_current_user
@@ -93,125 +95,159 @@ def user_documents(
 )
 async def upload_file(
     session_id: str,
+    request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    trace_id = get_trace_id(request)
+
     if not file.filename:
+        create_log(
+            db,
+            level=Level.WARN,
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=400,
+            error_code="DOC_001",
+            message="문서 업로드 실패 - 파일명 없음",
+            user_id=current_user.user_id,
+            session_id=session_id,
+            trace_id=trace_id,
+        )
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="파일명이 없습니다.",
         )
 
     original_filename = get_original_filename(file.filename)
-    file_type = get_file_type(original_filename)
 
-    # 선택된 채팅방 탐색
-    chat_session = db.query(Chat).filter(
-        Chat.session_id == session_id,
-        Chat.user_id == current_user.user_id,
-    ).first()
-
-    # 없으면 새로 생성
-    if not chat_session:
-        chat_session = Chat(
-            session_id=session_id,
-            user_id=current_user.user_id,
-            title=original_filename,  # 파일명을 제목으로
-        )
-        db.add(chat_session)
-    
-    # 이미 있는데 기본 제목이면 파일명으로 변경
-    elif chat_session.title in (None, "", "새대화", "새 대화", "New Chat"):
-        chat_session.title = original_filename
-    
-    db.commit()
-    db.refresh(chat_session)
-        
-
-    # settings에서 설정한 directory 접근
-    upload_dir = settings.UPLOAD_DIR
-    # 해당 directory가 없으면 생성
-    os.makedirs(upload_dir, exist_ok=True)
-
-    # UUID 난독화 작업한 파일명을 file_path로 저장
-    storage_filename = make_storage_filename(original_filename)
-    file_path = os.path.join(upload_dir, storage_filename)
-
-    # 난독화한 파일을 설정한 Directory에 복사하여 파일을 저장
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    file_size = os.path.getsize(file_path)
-
-    # 텍스트 추출 → 요약
-    with open(file_path, "rb") as f:
-        file_bytes = f.read()
-    
-    # 텍스트 추출
-    extracted_text = ""
     try:
-        extracted_text = extract_text_from_file(file_bytes, original_filename)
-    except Exception as e:
-        print("텍스트 추출 실패:", e)
+        file_type = get_file_type(original_filename)
+    except HTTPException as e:
+        create_log(
+            db,
+            level=Level.WARN,
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=e.status_code,
+            error_code="DOC_002",
+            message=f"문서 업로드 실패 - 지원하지 않는 파일 형식: {original_filename}",
+            user_id=current_user.user_id,
+            session_id=session_id,
+            trace_id=trace_id,
+        )
+        raise e
 
-        if os.path.exists(file_path):
-            os.remove(file_path)
 
-        message = str(e)
-        if "UNSUPPORTED_HWPML" in message or "HWPML 2.1" in message or "HWP 3.0" in message:
+    
+    try:
+        # 선택된 채팅방 탐색
+        chat_session = db.query(Chat).filter(
+            Chat.session_id == session_id,
+            Chat.user_id == current_user.user_id,
+        ).first()
+    
+        # 없으면 새로 생성
+        if not chat_session:
+            chat_session = Chat(
+                session_id=session_id,
+                user_id=current_user.user_id,
+                title=original_filename,  # 파일명을 제목으로
+            )
+            db.add(chat_session)
+        
+        # 이미 있는데 기본 제목이면 파일명으로 변경
+        elif chat_session.title in (None, "", "새대화", "새 대화", "New Chat"):
+            chat_session.title = original_filename
+        
+        db.commit()
+        db.refresh(chat_session)
+            
+    
+        # settings에서 설정한 directory 접근
+        upload_dir = settings.UPLOAD_DIR
+        # 해당 directory가 없으면 생성
+        os.makedirs(upload_dir, exist_ok=True)
+    
+        # UUID 난독화 작업한 파일명을 file_path로 저장
+        storage_filename = make_storage_filename(original_filename)
+        file_path = os.path.join(upload_dir, storage_filename)
+    
+        # 난독화한 파일을 설정한 Directory에 복사하여 파일을 저장
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    
+        file_size = os.path.getsize(file_path)
+    
+        # 텍스트 추출 → 요약
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
+        
+        # 텍스트 추출
+        extracted_text = ""
+        try:
+            extracted_text = extract_text_from_file(file_bytes, original_filename)
+        except Exception as e:
+            print("텍스트 추출 실패:", e)
+    
+            if os.path.exists(file_path):
+                os.remove(file_path)
+    
+            message = str(e)
+            if "UNSUPPORTED_HWPML" in message or "HWPML 2.1" in message or "HWP 3.0" in message:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="HWP 3.0 이하 포맷은 지원하지 않습니다.\nHWPX 형식으로 변환 후 다시 업로드해주세요.",
+                )
+    
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="HWP 3.0 이하 포맷은 지원하지 않습니다.\nHWPX 형식으로 변환 후 다시 업로드해주세요.",
+                detail="문서 텍스트 추출에 실패했습니다.",
             )
-
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="문서 텍스트 추출에 실패했습니다.",
+    
+        meta = None
+        summary = ""
+        if extracted_text:
+            try:
+                meta = summarize_document(extracted_text)
+                summary = meta.summary
+                print("=== 요약 결과 ===")
+                print("category:", meta.category)
+                print("law_date:", meta.law_date)
+                print("law_name:", meta.law_name)
+                print("summary:", meta.summary[:100])  # 너무 길면 100자만
+            except Exception as e:
+                print("요약 실패:", e)     
+                summary = ""      
+    
+        # 법률 문서 아니면 파일 삭제 후 에러 반환
+        if meta is None or meta.category not in (LAW_CATEGORIES | LAW_UNSTRUCTURED):
+            os.remove(file_path)  # 저장된 파일도 정리
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="법률 관련 문서만 업로드 가능합니다.",
         )
-
-    meta = None
-    summary = ""
-    if extracted_text:
-        try:
-            meta = summarize_document(extracted_text)
-            summary = meta.summary
-            print("=== 요약 결과 ===")
-            print("category:", meta.category)
-            print("law_date:", meta.law_date)
-            print("law_name:", meta.law_name)
-            print("summary:", meta.summary[:100])  # 너무 길면 100자만
-        except Exception as e:
-            print("요약 실패:", e)     
-            summary = ""      
-
-    # 법률 문서 아니면 파일 삭제 후 에러 반환
-    if meta is None or meta.category not in (LAW_CATEGORIES | LAW_UNSTRUCTURED):
-        os.remove(file_path)  # 저장된 파일도 정리
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="법률 관련 문서만 업로드 가능합니다.",
-    )
-
-    # 추후 요약LLM도 생성 후 summary에 적용 시키기
-    # Websocket 연동도 같이 진행
-    document = Document(
-        user_id=current_user.user_id,
-        session_id=session_id,
-        file_name=original_filename,
-        file_ext=file_type,
-        file_size_bytes=file_size,
-        storage_url=file_path,
-        status=Status.CHUNKED,
-        category=Category(meta.category),
-        summary=summary,
-    )
-
-    db.add(document)
-    db.commit()
-    db.refresh(document)
-
-    try:
+    
+        # 추후 요약LLM도 생성 후 summary에 적용 시키기
+        # Websocket 연동도 같이 진행
+        document = Document(
+            user_id=current_user.user_id,
+            session_id=session_id,
+            file_name=original_filename,
+            file_ext=file_type,
+            file_size_bytes=file_size,
+            storage_url=file_path,
+            status=Status.CHUNKED,
+            category=Category(meta.category),
+            summary=summary,
+        )
+    
+        db.add(document)
+        db.commit()
+        db.refresh(document)
+    
         # 청킹테이블에 적재.
         await index_document(
         text=extracted_text,
@@ -228,9 +264,27 @@ async def upload_file(
         db.commit()
         db.refresh(document)
     except Exception as e:
-        print("인덱싱 실패:", e)
         document.status = Status.FAILED
         db.commit()
+
+        create_log(
+            db,
+            level=Level.ERROR,
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=500,
+            error_code="DOC_999",
+            message=f"문서 업로드 실패 - 서버 오류: {str(e)}",
+            user_id=current_user.user_id,
+            session_id=session_id,
+            trace_id=trace_id,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="문서 업로드 중 오류가 발생했습니다.",
+        )
+    
     finally:
         db.close()
     
@@ -242,9 +296,12 @@ async def upload_file(
 )
 async def delete_document(
     document_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    trace_id = get_trace_id(request)
+
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -259,12 +316,30 @@ async def delete_document(
             detail="사용자를 찾을 수 없습니다.",
         )
     
-    document = db.query(Document).filter(
-        User.user_id == current_user.user_id,
-        Document.document_id == document_id
-    ).first()
+    document = (
+        db.query(Document)
+        .join(Chat, Document.session_id == Chat.session_id)
+        .filter(
+            Document.document_id == document_id,
+            Chat.user_id == current_user.user_id
+        )
+        .first()
+    )
 
     if not document:
+        create_log(
+            db,
+            level=Level.WARN,
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=404,
+            error_code="CHAT_DELETE_001",
+            message=f"채팅방 삭제 실패 - 채팅방 없음: {session_id}",
+            user_id=current_user.user_id,
+            session_id=session_id,
+            trace_id=trace_id,
+        )
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="문서를 찾을 수 없습니다."
@@ -273,6 +348,7 @@ async def delete_document(
     try:
         # 문서가 속한 채팅방 ID를 먼저 저장
         session_id = document.session_id
+        file_name = document.file_name
 
         # 벡터 DB / 인덱스 삭제
         delete_target = await delete_document_index(
@@ -311,6 +387,19 @@ async def delete_document(
 
         db.commit()
 
+
+        create_log(
+            db,
+            level=Level.INFO,
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=200,
+            message=f"문서 삭제 성공 - document_id={document_id}, file={file_name}",
+            user_id=current_user.user_id,
+            session_id=session_id,
+            trace_id=trace_id,
+        )
+
         return {
             "message": "문서가 삭제되었습니다.",
             "chat_session_deleted": chat_session_deleted
@@ -318,7 +407,20 @@ async def delete_document(
     
     except Exception as e:  
         db.rollback()
-        print("문서 삭제 실패 : ", e)
+
+        create_log(
+            db,
+            level=Level.ERROR,
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=500,
+            error_code="DOC_DELETE_999",
+            message=f"문서 삭제 실패 - 서버 오류: {str(e)}",
+            user_id=current_user.user_id,
+            session_id=session_id,
+            trace_id=trace_id,
+        )
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="문서 삭제에 실패했습니다."
