@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     EMBEDDING_BATCH: int= Field(default=...)
 
     # 허용 주소값
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173", "https://www.legalchat.shop"]
 
     # pincone
     # `...`(Ellipsis)은 "기본값은 비운다는 의미지만 env에서 시스템환경변수 같은 값을 최우선으로 가져오는 의미입니다.
