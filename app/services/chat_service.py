@@ -1,20 +1,13 @@
 """
-chat_service: RAG 전체 흐름 지휘 (Service 계층)
-
-역할:
-- 흩어진 부품(vector / message_crud / prompt / service / hallucination)을
-  순서대로 호출해서 최종 답변을 완성하는 "리모컨"
-- 웹소켓 라우터가 이 함수 하나만 호출하면 됨
-
-흐름:
-  이전대화 → (context_mode 자동판단) → (검색쿼리 맥락보강)
-  → search → 거름망 → 조립 → LLM → 환각검증 → 반환
+RAG 파이프라인 전체 흐름을 관리한다.
 """
 
 from sqlalchemy.orm import Session
+
 from app.services.vector_service import (
-    search_pinecone,
+    LEGAL_MIN_SCORE,
     is_legal_domain,
+    search_pinecone,
 )
 from app.crud.message_crud import get_recent_messages
 from app.services.prompt_service import assemble_messages
@@ -24,50 +17,124 @@ from app.schemas.chat.response import ChatAnswerResponse
 from app.db.models.document import Document, Status
 
 
+HARD_REJECT_SCORE = 1.3
+CONTEXT_SEARCH_MAX = 2.0
+
+
+def build_contextual_query(
+    question: str,
+    history: list[dict],
+) -> str:
+    """후속 질문이면 직전 질문 하나를 검색어에 붙인다."""
+
+    if not history:
+        return question
+
+    previous_question = (
+        history[0].get("question") or ""
+    ).strip()
+
+    if previous_question and previous_question != question:
+        return f"{previous_question} {question}"
+
+    return question
+
+
+def get_score(result: dict) -> float:
+    """검색 결과의 점수를 안전하게 반환한다."""
+
+    try:
+        return float(result.get("score") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def select_llm_search_results(
+    search_results: list[dict],
+    context_mode: str,
+    document_k: int = 2,
+    public_k: int = 3,
+) -> list[dict]:
+    """
+    파일 업로드 세션에서는:
+    - 사용자 문서 최대 2개
+    - 공용 법률 최대 3개
+
+    일반 세션에서는 점수순 상위 5개를 사용한다.
+    """
+
+    total_k = document_k + public_k
+
+    if context_mode != "hybrid":
+        return search_results[:total_k]
+
+    document_results = [
+        result
+        for result in search_results
+        if result.get("source_type") == "document"
+    ]
+
+    public_results = [
+        result
+        for result in search_results
+        if result.get("source_type") == "legal_vector"
+    ]
+
+    document_results.sort(
+        key=get_score,
+        reverse=True,
+    )
+    public_results.sort(
+        key=get_score,
+        reverse=True,
+    )
+
+    selected = (
+        document_results[:document_k]
+        + public_results[:public_k]
+    )
+
+    selected.sort(
+        key=get_score,
+        reverse=True,
+    )
+
+    return selected
+
+
 async def process_chat(
     db: Session,
     user_id: str,
     session_id: str,
     question: str,
     context_mode: str = "general",
-    top_k: int = 5,
+    top_k: int = 20,
     history_limit: int = 10,
     history: list[dict] | None = None,
 ) -> ChatAnswerResponse:
-    """
-    질문 하나를 받아 RAG 파이프라인 전체를 실행하고 최종 응답 반환
+    """질문 하나를 받아 검색부터 답변 생성까지 실행한다."""
 
-    입력:
-        db           : DB 세션
-        user_id      : 질문한 유저
-        session_id   : 채팅방
-        question     : 사용자 질문
-        context_mode : general 기본값, 파일 있으면 자동으로 hybrid 전환
-        top_k        : 검색 결과 개수
-        history_limit: 가져올 이전 대화 턴 수
-        history      : 직접 주입 시 DB 조회 건너뜀 (테스트용)
-
-    반환:
-        ChatAnswerResponse (answer / verified / warnings / unverified_refs / sources)
-    """
-
-    # 0. context_mode 자동 판단
-    #    이 session_id에 READY 파일 있으면 → hybrid
-    #    없으면 → general 유지
-    #    db=None이면 테스트 모드라 건너뜀
+    # 파일이 있는 채팅방은 Hybrid 검색으로 전환한다.
     if db is not None and context_mode == "general":
-        has_file = db.query(Document).filter(
-            Document.session_id == session_id,
-            Document.status == Status.READY,
-        ).first() is not None
+        has_file = (
+            db.query(Document)
+            .filter(
+                Document.session_id == session_id,
+                Document.status.in_(
+                    [
+                        Status.READY,
+                        Status.EMBEDDED,
+                    ]
+                ),
+            )
+            .first()
+            is not None
+        )
+
         if has_file:
             context_mode = "hybrid"
 
-    # print(f"1:{context_mode}")
-
-    # 1. 이전 대화 이력 가져오기
-    #    최신순 반환 → history[0]이 직전 질문
-    #    history 직접 주입 시 DB 조회 건너뜀 (테스트용)
+    # 완료된 이전 대화를 조회한다.
     if history is None:
         history = get_recent_messages(
             db=db,
@@ -75,33 +142,62 @@ async def process_chat(
             limit=history_limit,
         )
 
-    # print(f"2:{history}")
-
-    # 2. 검색용 쿼리 맥락 보강 (방법 A)
-    #    지시어 후속질문은 직전 질문을 앞에 붙여 맥락 살림
-    #    프롬프트에 들어가는 question은 원본 유지
-    search_query = question
-    if history:
-        last_question = history[0].get("question", "")
-        if last_question:
-            search_query = f"{last_question} {question}"
-
-    # print(f"3:{history}")
-
-    # 3. Pinecone 검색 → Top-K
-    search_results = search_pinecone(
-        question=search_query,
+    # 현재 질문만으로 먼저 검색한다.
+    standalone_results = search_pinecone(
+        question=question,
         context_mode=context_mode,
         user_id=user_id,
         top_k=top_k,
         db=db,
     )
 
-    # print(f"4:{search_results}")
+    standalone_top1 = (
+        get_score(standalone_results[0])
+        if standalone_results
+        else 0.0
+    )
 
-    # 4. 거름망 — 법률 질문인지 판별
-    is_legal = is_legal_domain(search_results)
-    if not is_legal:
+    search_results = standalone_results
+
+    # 점수가 애매하고 이전 대화가 있으면 맥락 검색을 수행한다.
+    if (
+        standalone_top1 <= CONTEXT_SEARCH_MAX
+        and history
+    ):
+        contextual_query = build_contextual_query(
+            question=question,
+            history=history,
+        )
+
+        contextual_results = search_pinecone(
+            question=contextual_query,
+            context_mode=context_mode,
+            user_id=user_id,
+            top_k=top_k,
+            db=db,
+        )
+
+        contextual_top1 = (
+            get_score(contextual_results[0])
+            if contextual_results
+            else 0.0
+        )
+
+        # 맥락 검색이 단독 검색보다 좋을 때만 교체한다.
+        if (
+            contextual_top1 >= LEGAL_MIN_SCORE
+            and contextual_top1 > standalone_top1
+        ):
+            search_results = contextual_results
+
+    final_top1 = (
+        get_score(search_results[0])
+        if search_results
+        else 0.0
+    )
+
+    # 모든 검색이 끝난 뒤 최종 점수로 비법률 질문을 차단한다.
+    if final_top1 <= HARD_REJECT_SCORE:
         return ChatAnswerResponse(
             answer="죄송합니다. 법률 관련 질문에만 답변할 수 있습니다.",
             verified=True,
@@ -109,20 +205,23 @@ async def process_chat(
             unverified_refs=[],
             sources=[],
         )
-    
-    # print(f"5:{is_legal}")
 
-    # 5. 프롬프트 조립
-    """messages = assemble_messages(
-        question=question,
+    if not is_legal_domain(search_results):
+        return ChatAnswerResponse(
+            answer="죄송합니다. 법률 관련 질문에만 답변할 수 있습니다.",
+            verified=True,
+            warnings=[],
+            unverified_refs=[],
+            sources=[],
+        )
+
+    # Hybrid에서는 사용자 문서 2개와 공용 법률 3개를 선택한다.
+    llm_search_results = select_llm_search_results(
         search_results=search_results,
-        history=history,
-    )"""
-
-    # 5. 프롬프트 조립
-    # 검색은 top_k개 가져오되, 모델에게는 상위 3개만 전달한다.
-    # 참고자료가 너무 많으면 모델이 여러 조문을 섞어서 답변할 수 있기 때문.
-    llm_search_results = search_results[:3]
+        context_mode=context_mode,
+        document_k=2,
+        public_k=3,
+    )
 
     messages = assemble_messages(
         question=question,
@@ -130,15 +229,9 @@ async def process_chat(
         history=history,
     )
 
-    # print(f"6:{messages}")
-
-    # 6. LLM 호출
     answer = await generate_answer(messages)
-    # print(f"7:{answer}")
 
-    # 7. 환각 검증 + 출처 포맷 → 최종 응답
-
-    """response = build_response(answer, search_results)"""
-
-    response = build_response(answer, llm_search_results)
-    return response
+    return build_response(
+        answer,
+        llm_search_results,
+    )
