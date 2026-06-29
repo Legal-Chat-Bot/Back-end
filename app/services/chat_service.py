@@ -1,5 +1,6 @@
 """
-RAG 파이프라인 전체 흐름을 관리한다.
+# RAG 파이프라인 전체(검색→거절판단→프롬프트→LLM→환각검증)를 순서대로 지휘 
+# 실제 작업은 다 다른 서비스에 위임
 """
 
 from sqlalchemy.orm import Session
@@ -17,6 +18,7 @@ from app.schemas.chat.response import ChatAnswerResponse
 from app.db.models.document import Document, Status
 
 
+<<<<<<< HEAD
 HARD_REJECT_SCORE = 1.3
 CONTEXT_SEARCH_MAX = 2.0
 
@@ -25,10 +27,12 @@ def build_contextual_query(
     question: str,
     history: list[dict],
 ) -> str:
+
     """후속 질문이면 직전 질문 하나를 검색어에 붙인다."""
 
     if not history:
         return question
+
 
     previous_question = (
         history[0].get("question") or ""
@@ -38,6 +42,7 @@ def build_contextual_query(
         return f"{previous_question} {question}"
 
     return question
+
 
 
 def get_score(result: dict) -> float:
@@ -65,6 +70,7 @@ def select_llm_search_results(
 
     total_k = document_k + public_k
 
+
     if context_mode != "hybrid":
         return search_results[:total_k]
 
@@ -74,11 +80,13 @@ def select_llm_search_results(
         if result.get("source_type") == "document"
     ]
 
+
     public_results = [
         result
         for result in search_results
         if result.get("source_type") == "legal_vector"
     ]
+
 
     document_results.sort(
         key=get_score,
@@ -93,6 +101,7 @@ def select_llm_search_results(
         document_results[:document_k]
         + public_results[:public_k]
     )
+
 
     selected.sort(
         key=get_score,
@@ -112,6 +121,7 @@ async def process_chat(
     history_limit: int = 10,
     history: list[dict] | None = None,
 ) -> ChatAnswerResponse:
+
     """질문 하나를 받아 검색부터 답변 생성까지 실행한다."""
 
     # 파일이 있는 채팅방은 Hybrid 검색으로 전환한다.
@@ -142,6 +152,7 @@ async def process_chat(
             limit=history_limit,
         )
 
+
     # 현재 질문만으로 먼저 검색한다.
     standalone_results = search_pinecone(
         question=question,
@@ -150,6 +161,7 @@ async def process_chat(
         top_k=top_k,
         db=db,
     )
+
 
     standalone_top1 = (
         get_score(standalone_results[0])
@@ -206,6 +218,7 @@ async def process_chat(
             sources=[],
         )
 
+
     if not is_legal_domain(search_results):
         return ChatAnswerResponse(
             answer="죄송합니다. 법률 관련 질문에만 답변할 수 있습니다.",
@@ -215,6 +228,7 @@ async def process_chat(
             sources=[],
         )
 
+
     # Hybrid에서는 사용자 문서 2개와 공용 법률 3개를 선택한다.
     llm_search_results = select_llm_search_results(
         search_results=search_results,
@@ -223,11 +237,13 @@ async def process_chat(
         public_k=3,
     )
 
+    # 프롬프트 조립
     messages = assemble_messages(
         question=question,
         search_results=llm_search_results,
         history=history,
     )
+
 
     answer = await generate_answer(messages)
 

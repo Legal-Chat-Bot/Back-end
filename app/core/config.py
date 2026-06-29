@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     SUMMARIZE_MODEL: str = Field(default="exaone3.5:2.4b")
     EMBEDDING_MODEL: str = Field(default="BAAI/bge-m3")    # 임베딩용
     RAG_MODEL: str = "law-exaone-7.8b-q6"        # RAG 응답용
+
     #임베딩모델 설정
     SPARSE_THRESHOLD: float = Field(default=...)
     EMBEDDING_DEVICE: str= Field(default=...) 

@@ -38,6 +38,7 @@ def _get_score(result: dict) -> float:
         return 0.0
 
 
+
 def _get_embedding_value(
     embedding,
     *names,
@@ -47,22 +48,20 @@ def _get_embedding_value(
     if isinstance(embedding, dict):
         for name in names:
             value = embedding.get(name)
-
             if value is not None:
                 return value
 
     for name in names:
+
         value = getattr(
             embedding,
             name,
             None,
         )
-
         if value is not None:
             return value
 
     return None
-
 
 def _get_source_type(
     namespace: str,
@@ -79,7 +78,6 @@ def _get_source_type(
         return "legal_vector"
 
     return "document"
-
 
 def _normalize_result(
     result: dict,
@@ -144,7 +142,6 @@ def _attach_chunk_text(
             metadata.get("vector_id")
             or result.get("id")
         )
-
         vector_id = _to_uuid(raw_id)
 
         if vector_id is None:
@@ -384,13 +381,33 @@ def search_pinecone(
         db=db,
         results=results,
     )
+    # RDB 본문 결합
+    return _attach_chunk_text(
+        db=db,
+        results=results,
+    )
+
+# 검색한 결과 top1이 지정한 수치를 넘어서 
+# 이 검색이 법률 도메인에 충분히 가까운가/품질이 괜찮은가를 판단
+"""def evaluate_search_quality(
+    question: str,
+    search_results: list[dict],
+    min_top1_score: float = LEGAL_MIN_SCORE,
+) -> tuple[bool, str]:
+
+    if not search_results:
+        return False, "검색 결과 없음"
+
+    to
 
 
 def is_legal_domain(
     search_results: list[dict],
     min_top1_score: float = LEGAL_MIN_SCORE,
 ) -> bool:
+
     """Top-1 검색 점수로 법률 질문 여부를 판단한다."""
+
 
     if not search_results:
         return False
