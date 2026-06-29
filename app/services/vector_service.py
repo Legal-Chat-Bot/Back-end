@@ -38,7 +38,6 @@ def _get_score(result: dict) -> float:
         return 0.0
 
 
-
 def _get_embedding_value(
     embedding,
     *names,
@@ -48,11 +47,11 @@ def _get_embedding_value(
     if isinstance(embedding, dict):
         for name in names:
             value = embedding.get(name)
+
             if value is not None:
                 return value
 
     for name in names:
-
         value = getattr(
             embedding,
             name,
@@ -84,7 +83,6 @@ def _normalize_result(
     namespace: str,
 ) -> dict:
     """Pinecone 검색 결과를 동일한 구조로 변환한다."""
-
     metadata = dict(
         result.get("metadata") or {}
     )
