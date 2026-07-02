@@ -1,39 +1,29 @@
-"""
-RAG 파이프라인 전체 흐름을 관리한다.
-"""
+"""RAG 검색부터 답변 생성까지 전체 흐름을 관리한다."""
 
 from sqlalchemy.orm import Session
 
-from app.services.vector_service import (
-    LEGAL_MIN_SCORE,
-    is_legal_domain,
-    search_pinecone,
-)
 from app.crud.message_crud import get_recent_messages
-from app.services.prompt_service import assemble_messages
-from app.services.service import generate_answer
-from app.services.hallucination_service import build_response
-from app.schemas.chat.response import ChatAnswerResponse
 from app.db.models.document import Document, Status
+from app.schemas.chat.response import ChatAnswerResponse
+from app.services.centroid_service import classify_question
+from app.services.hallucination_service import build_response
+from app.services.prompt_service import assemble_messages
+from app.services.reranker_service import rerank_search_results
+from app.services.service import generate_answer
+from app.services.vector_service import attach_chunk_text, search_pinecone
 
 
 
-HARD_REJECT_SCORE = 1.3
-CONTEXT_SEARCH_MAX = 2.0
 
-
+# 직전 질문 하나와 현재 질문을 결합한다.
 def build_contextual_query(
     question: str,
     history: list[dict],
 ) -> str:
-    """후속 질문이면 직전 질문 하나를 검색어에 붙인다."""
-
     if not history:
         return question
 
-    previous_question = (
-        history[0].get("question") or ""
-    ).strip()
+    previous_question = (history[0].get("question") or "").strip()
 
     if previous_question and previous_question != question:
         return f"{previous_question} {question}"
@@ -41,52 +31,46 @@ def build_contextual_query(
     return question
 
 
+# Cross-Encoder 점수를 우선하여 결과 점수를 반환한다.
 def get_score(result: dict) -> float:
-    """검색 결과의 점수를 안전하게 반환한다."""
-
     try:
-        return float(result.get("score") or 0.0)
+        score = result.get("rerank_score")
+
+        if score is None:
+            score = result.get("score")
+
+        return float(score or 0.0)
     except (TypeError, ValueError):
         return 0.0
 
 
+# 일반 또는 Hybrid 모드에 맞춰 최종 참고자료를 선택한다.
 def select_llm_search_results(
     search_results: list[dict],
     context_mode: str,
     document_k: int = 2,
     public_k: int = 3,
 ) -> list[dict]:
-    """
-    파일 업로드 세션에서는:
-    - 사용자 문서 최대 2개
-    - 공용 법률 최대 3개
-
-    일반 세션에서는 점수순 상위 5개를 사용한다.
-    """
-
     total_k = document_k + public_k
 
     if context_mode != "hybrid":
         return search_results[:total_k]
 
-    document_results = [
-        result
-        for result in search_results
-        if result.get("source_type") == "document"
-    ]
-
-    public_results = [
-        result
-        for result in search_results
-        if result.get("source_type") == "legal_vector"
-    ]
-
-
-    document_results.sort(
+    document_results = sorted(
+        (
+            result
+            for result in search_results
+            if result.get("source_type") == "document"
+        ),
         key=get_score,
         reverse=True,
     )
-    public_results.sort(
+    public_results = sorted(
+        (
+            result
+            for result in search_results
+            if result.get("source_type") == "legal_vector"
+        ),
         key=get_score,
         reverse=True,
     )
@@ -95,14 +79,24 @@ def select_llm_search_results(
         document_results[:document_k]
         + public_results[:public_k]
     )
-
-    selected.sort(
-        key=get_score,
-        reverse=True,
-    )
+    selected.sort(key=get_score, reverse=True)
     return selected
 
 
+# LLM을 호출하지 않는 차단 응답을 생성한다.
+def build_reject_response(
+    message: str = "죄송합니다. 법률 관련 질문에만 답변할 수 있습니다.",
+) -> ChatAnswerResponse:
+    return ChatAnswerResponse(
+        answer=message,
+        verified=True,
+        warnings=[],
+        unverified_refs=[],
+        sources=[],
+    )
+
+
+# 질문을 받아 RAG 파이프라인 전체를 실행한다.
 async def process_chat(
     db: Session,
     user_id: str,
@@ -113,20 +107,13 @@ async def process_chat(
     history_limit: int = 10,
     history: list[dict] | None = None,
 ) -> ChatAnswerResponse:
-    """질문 하나를 받아 검색부터 답변 생성까지 실행한다."""
-
-    # 파일이 있는 채팅방은 Hybrid 검색으로 전환한다.
+    # 파일이 있는 세션은 공용 자료와 사용자 문서를 함께 검색한다.
     if db is not None and context_mode == "general":
         has_file = (
             db.query(Document)
             .filter(
                 Document.session_id == session_id,
-                Document.status.in_(
-                    [
-                        Status.READY,
-                        Status.EMBEDDED,
-                    ]
-                ),
+                Document.status.in_([Status.READY, Status.EMBEDDED]),
             )
             .first()
             is not None
@@ -135,93 +122,98 @@ async def process_chat(
         if has_file:
             context_mode = "hybrid"
 
-    # 완료된 이전 대화를 조회한다.
+    # 이전 대화는 애매한 후속 질문의 맥락 확인에만 사용한다.
     if history is None:
         history = get_recent_messages(
             db=db,
             session_id=session_id,
             limit=history_limit,
         )
-    # 현재 질문만으로 먼저 검색한다.
-    standalone_results = search_pinecone(
-        question=question,
+    # 현재 질문만으로 법률 영역을 먼저 판별한다.
+    current_decision, current_embedding = classify_question(question)
+
+    if current_decision.label == "nonlegal":
+        return build_reject_response()
+
+    ranking_query = question
+    search_embedding = current_embedding
+
+    # 현재 질문이 애매할 때만 직전 질문과 결합해 다시 판별한다.
+    if current_decision.label == "ambiguous":
+        if not history:
+            return build_reject_response(
+                "법률 질문인지 판단하기 어렵습니다. 질문을 조금 더 구체적으로 입력해주세요."
+            )
+
+        contextual_query = build_contextual_query(question, history)
+
+        if contextual_query == question:
+            return build_reject_response(
+                "법률 질문인지 판단하기 어렵습니다. 질문을 조금 더 구체적으로 입력해주세요."
+            )
+
+        contextual_decision, contextual_embedding = classify_question(
+            contextual_query
+        )
+
+        if contextual_decision.label != "legal":
+            return build_reject_response()
+
+        ranking_query = contextual_query
+        search_embedding = contextual_embedding
+
+    # Centroid 판별에 사용한 임베딩을 Pinecone 검색에 재사용한다.
+    search_results = search_pinecone(
+        question=ranking_query,
         context_mode=context_mode,
         user_id=user_id,
         top_k=top_k,
         db=db,
+        load_rdb_text=False,
+        embedding=search_embedding,
     )
 
-    standalone_top1 = (
-        get_score(standalone_results[0])
-        if standalone_results
-        else 0.0
+    if not search_results:
+        return build_reject_response(
+            "질문과 관련된 법률 자료를 찾을 수 없습니다."
+        )
+
+    # Top-K의 vector_id로 RDB 원문을 붙이고 빈 본문을 제거한다.
+    search_results = attach_chunk_text(
+        db=db,
+        results=search_results,
     )
 
-    search_results = standalone_results
-
-    # 점수가 애매하고 이전 대화가 있으면 맥락 검색을 수행한다.
-    if (
-        standalone_top1 <= CONTEXT_SEARCH_MAX
-        and history
-    ):
-        contextual_query = build_contextual_query(
-            question=question,
-            history=history,
+    if not search_results:
+        return build_reject_response(
+            "관련 법률 자료의 본문을 확인할 수 없습니다."
         )
 
-        contextual_results = search_pinecone(
-            question=contextual_query,
-            context_mode=context_mode,
-            user_id=user_id,
-            top_k=top_k,
-            db=db,
-        )
-
-        contextual_top1 = (
-            get_score(contextual_results[0])
-            if contextual_results
-            else 0.0
-        )
-
-        # 맥락 검색이 단독 검색보다 좋을 때만 교체한다.
-        if (
-            contextual_top1 >= LEGAL_MIN_SCORE
-            and contextual_top1 > standalone_top1
-        ):
-            search_results = contextual_results
-
-    final_top1 = (
-        get_score(search_results[0])
-        if search_results
-        else 0.0
+    # 질문과 RDB 원문을 Cross-Encoder로 재정렬한다.
+    search_results = rerank_search_results(
+        question=ranking_query,
+        search_results=search_results,
     )
 
-    # 모든 검색이 끝난 뒤 최종 점수로 비법률 질문을 차단한다.
-    if final_top1 <= HARD_REJECT_SCORE:
-        return ChatAnswerResponse(
-            answer="죄송합니다. 법률 관련 질문에만 답변할 수 있습니다.",
-            verified=True,
-            warnings=[],
-            unverified_refs=[],
-            sources=[],
+    if not search_results:
+        return build_reject_response(
+            "답변에 사용할 수 있는 관련 법률 자료가 없습니다."
         )
 
-    if not is_legal_domain(search_results):
-        return ChatAnswerResponse(
-            answer="죄송합니다. 법률 관련 질문에만 답변할 수 있습니다.",
-            verified=True,
-            warnings=[],
-            unverified_refs=[],
-            sources=[],
-        )
-
-    # Hybrid에서는 사용자 문서 2개와 공용 법률 3개를 선택한다.
+    # 일반은 상위 5개, Hybrid는 사용자 2개와 공용 3개를 선택한다.
     llm_search_results = select_llm_search_results(
         search_results=search_results,
         context_mode=context_mode,
         document_k=2,
         public_k=3,
     )
+
+    if not llm_search_results:
+        return build_reject_response(
+            "답변에 사용할 수 있는 관련 법률 자료가 없습니다."
+        )
+
+    # 현재 질문, 대화 맥락, 최종 참고자료를 프롬프트로 조립한다.
     messages = assemble_messages(
         question=question,
         search_results=llm_search_results,
@@ -229,7 +221,5 @@ async def process_chat(
     )
     answer = await generate_answer(messages)
 
-    return build_response(
-        answer,
-        llm_search_results,
-    )
+    # 답변 조문을 검증하고 출처를 포함한 응답을 반환한다.
+    return build_response(answer, llm_search_results)
