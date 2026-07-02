@@ -7,7 +7,7 @@ from app.db.models.user import User, SocialType
 from app.db.db import get_db
 from app.core.security import hash_password, get_current_user
 from app.services.kakao_service import kakao_unlink
-from app.db.vector.client import delete_all
+from app.db.vector.client import delete_all,get_index,user_namespace
 
 # app에서 작동하는 것이 아닌 router화로 app과 연동 시켜주기 위한 사전 작업
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -39,11 +39,14 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         social=user_data.social,
         user_type=user_data.user_type,
     )
+    index = get_index()
 
     # 연결된 db에 유저 데이터를 insert 해준다.
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    usernamespace = user_namespace(new_user.user_id)
+    index.create_namespace(name=usernamespace)
 
     return new_user
 
